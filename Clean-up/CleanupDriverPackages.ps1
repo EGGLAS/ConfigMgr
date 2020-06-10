@@ -25,8 +25,8 @@ $uri = 'https://outlook.office.com/webhook/e757a656-1fb0-4ad9-b8e0-15e7695d69ac@
 $Logo = 'https://www.ludvika.se/images/18.3a3ae1661636381356a1054/1526390491896/ludvika_logo.png' # this value would be a path to a nice image you would like to display in notifications
 
 # Site configuration
-$SiteCode = "CM1" # Site code 
-$ProviderMachineName = "LKSRVSCCM03.res.ludvika.intra" # SMS Provider machine name
+$SiteCode = "ENTER YOUR SITE CODE" # Site code 
+$ProviderMachineName = "ENTER SMS PROVIDER MACHINE NAME" # SMS Provider machine name
 
 # Customizations
 $initParams = @{}
