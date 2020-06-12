@@ -2,7 +2,7 @@
   .NOTES
   ===========================================================================
    Name: Nicklas Eriksson, IT-center
-   Purpose: Cleanup all drivers that are marked as retired in Configuration Manager and deletes sourcefiles.
+   Purpose: Send OSD Failed to Teams channel.
    Version: 1.0 - 2020-06-03
    History: 1.0 - 2020-06-03: Script was created.
    
