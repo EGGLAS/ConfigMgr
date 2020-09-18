@@ -6,8 +6,8 @@
 
 # Variabels 
 $SiteCode = "CM1" # Site code 
-$ProviderMachineName = "LKSRVSCCM03.res.ludvika.intra" # SMS Provider machine name
-$DriverPackageName = "Drivers - HP*" # Control which package you want to change.
+$ProviderMachineName = "CM.Domain.Local" # SMS Provider machine name
+$DriverPackageName = "Drivers - HP*" # Control which package you want to change. In my exemple I want to change all HP Drivers that start with the Name Drivers - HP
 $Manufacturer = "HP" # 
 
 # Customizations
