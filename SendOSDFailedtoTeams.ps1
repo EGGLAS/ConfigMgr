@@ -5,7 +5,7 @@
    Purpose: Send OSD Failed message to Teams channel.
    Version: 1.0 - 2020-06-03
    History: 1.0 - 2020-06-03: Script was created.
-            1.1 - 2020-06-12: Added ApplicationRole to teamsmessage.
+            1.1 - 2020-06-12: Added ApplicationRole to OSD Failed message.
    
 
    .original creator: 

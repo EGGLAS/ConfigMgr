@@ -3,9 +3,8 @@
   ===========================================================================
    Name: Nicklas Eriksson, IT-center
    Purpose: Cleanup all drivers that are marked as retired in Configuration Manager and deletes sourcefiles.
-   Version: 1.1 - 2020-06-03
+   Version: 1.0 - 2020-06-03
    History: 1.0 - 2020-06-03: Script was created.
-                1.1 - 2020-06-10: Added ApplicationRole to the Teamsmessage.
    
 
    .original creator: 
@@ -46,9 +45,6 @@ $TaskSequence = $TSenv.Value("_SMSTSPackageName")
 # Computer Name
 $Name = $TSenv.Value("OSDComputerName")
 
-# Get TS ApplicationRole
-$ApplicationRole = $TSenv.Value("ApplicationRole")
-
 # Computer Serial Number
 [string]$SerialNumber = (Get-WmiObject win32_bios).SerialNumber
 
@@ -77,10 +73,6 @@ $body = ConvertTo-Json -Depth 4 @{
                @{
           name  = 'OSD or IPU'
           value = "$OSDType"
-        },
-        @{
-          name  = 'ApplicationRole'
-          value = "$ApplicationRole"
         },
         @{
           name  = 'Finished'
