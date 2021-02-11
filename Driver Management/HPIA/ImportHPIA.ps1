@@ -6,7 +6,7 @@
 # Changelog: 1.0 - 2021-02-11 - Nicklas Eriksson -  Script Edited and fixed Daniels crappy hack and slash code :)
 #         
 # Credit, inspiration and copy/paste code from: garytown.com, dotnet-helpers.com, ConfigMgr.com, www.imab.dk
-
+# To Run the script: .\ImportHPIA.ps1 -config .\config.xml)
 
 [CmdletBinding()]
 param(
@@ -14,21 +14,16 @@ param(
     [string]$Config
 )
 
-
 $ScriptVersion = "1.0"
 
-
-#$Config = "E:\Scripts\ImportHPIA\Config.xml" (.\ImportHPIA.ps1 -config .\config.xml)
+#$Config = "E:\Scripts\ImportHPIA\Config.xml" # (.\ImportHPIA.ps1 -config .\config.xml)
 
 if (Test-Path -Path $Config) {
         try { 
             $Xml = [xml](Get-Content -Path $Config -Encoding UTF8)
-            #Log -Message "Successfully loaded $Config" -LogFile $Logfile
         }
         catch {
             $ErrorMessage = $_.Exception.Message
-            #Log -Message "Error, could not read $Config" -Level Error -LogFile $Logfile
-            #Log -Message "Error message: $ErrorMessage" -Level Error -LogFile $Logfile
             Exit 1
         }
 
