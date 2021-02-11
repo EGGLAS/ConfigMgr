@@ -1,12 +1,11 @@
-# Author: Daniel Gråhns
-# Date: 2021-02-02
-# Purpose: 
-#
+ # Author: Daniel GrÃ¥hns, Nicklas Eriksson
+# Date: 2021-02-11
+# Purpose: Download HP Drivers to repository and use with Webservice and TaskSequence
 #
 # Version: 1.0
-# Changelog: 1.0 - 2021-02-02 - Nicklas Eriksson -  Script was created. 
+# Changelog: 1.0 - 2021-02-11 - Nicklas Eriksson -  Script Edited and fixed Daniels crappy hack and slash code :)
 #         
-# Credit to: ......   
+# Credit, inspiration and copy/paste code from: garytown.com, dotnet-helpers.com, ConfigMgr.com, www.imab.dk
 
 
 [CmdletBinding()]
@@ -48,9 +47,9 @@ $XMLInstallHPIA = $Xml.Configuration.Option | Where-Object {$_.Name -like 'Insta
 $XMLLogfile = $Xml.Configuration.Option | Where-Object {$_.Name -like 'Logfile'} | Select-Object -ExpandProperty 'Value'
 $RepositoryPath = $Xml.Configuration.Option | Where-Object {$_.Name -like 'RepositoryPath'} | Select-Object -ExpandProperty 'Value'
 $InstallPath = $Xml.Configuration.Option | Where-Object {$_.Name -like 'InstallPath'} | Select-Object -ExpandProperty "Value"
+$SiteCode = $Xml.Configuration.Option | Where-Object {$_.Name -like 'SiteCode'} | Select-Object -ExpandProperty 'Value'
 $CMFolderPath = $Xml.Configuration.Option | Where-Object {$_.Name -like 'CMFolderPath'} | Select-Object -ExpandProperty 'Value'
 $ConfigMgrModule = $Xml.Configuration.Option | Where-Object {$_.Name -like 'ConfigMgrModule'} | Select-Object -ExpandProperty 'Value'
-$SiteCode = $Xml.Configuration.Option | Where-Object {$_.Name -like 'SiteCode'} | Select-Object -ExpandProperty 'Value'
 $SupportedModelsCSV = $Xml.Configuration.Option | Where-Object {$_.Name -like 'SupportComputerModels'} | Select-Object -ExpandProperty 'Value'
 $XMLEnableSMTP = $Xml.Configuration.Option | Where-Object {$_.Name -like 'EnableSMTP'} | Select-Object 'Enabled','SMTP',"Adress"
 
@@ -93,10 +92,12 @@ Log -Message "Successfully loaded $Config" -LogFile $Logfile
 LOg -LogFile $LogFile "Powershellscript was started with scriptversion: $($ScriptVersion)" -type 1
 
 # CHeck if HPCML should autoupdate from Powershell gallery if's specified in the config.
-if ($InstallHPCML.Enabled -eq "True")
+if ($InstallHPCML -eq "True")
 {
         Log -Message "HPCML was  enbabled to autoinstall in ConfigFile, starting to install HPCML" -type 1 -LogFile $LogFile
-        Install-Module -Name HPCMSL
+        Install-PackageProvider -Name NuGet -Force # make sure Package NuGet is up to date 
+        Install-Module -Name PowerShellGet  -Force # install the latest version of PowerSHellGet module
+        Install-Module -Name HPCMSL -Force -AcceptLicense
         Log -Message "HPCML was  successfully updated" -type 1 -LogFile $LogFile
 
 }
@@ -215,13 +216,26 @@ $HPModelsTable = foreach ($Model in $ModelsToImport)
 
 
 
+
 foreach ($Model in $HPModelsTable) {
-$GLOBAL:UpdatePackage = $False
+    
+    # Set OSVersion for 2009 to 20H2.  
+    if($Model.OSVER -eq "2009")
+    {
+         $OSVER = "20H2"
+         
+    }
+    else
+    {
+        $OSVER = $Model.OSVER
+    }
+
+    $GLOBAL:UpdatePackage = $False
 #==============Monitor Changes for Update Package======================================================
    $filewatcher = New-Object System.IO.FileSystemWatcher
     
     #Mention the folder to monitor
-    $filewatcher.Path = "$($RepositoryPath)\$($Model.OSVER)\$($Model.Model) $($Model.ProdCode)\"
+    $filewatcher.Path = "$($RepositoryPath)\$OSVER\$($Model.Model) $($Model.ProdCode)\"
     $filewatcher.Filter = "*.*"
     #include subdirectories $true/$false
     $filewatcher.IncludeSubdirectories = $False
@@ -243,13 +257,14 @@ $GLOBAL:UpdatePackage = $False
     Register-ObjectEvent $filewatcher "Renamed" -Action $writeaction
 #=====================================================================================================================
 
+
     Log -Message "----------------------------------------------------------------------------" -LogFile $LogFile
     Log -Message "Checking if repository for model $($Model.Model) aka $($Model.ProdCode) exists" -LogFile $LogFile
-    if (Test-Path "$($RepositoryPath)\$($Model.OSVER)\$($Model.Model) $($Model.ProdCode)\Repository") { Log -Message "Repository for model $($Model.Model) aka $($Model.ProdCode) already exists" -LogFile $LogFile }
-    if (-not (Test-Path "$($RepositoryPath)\$($Model.OSVER)\$($Model.Model) $($Model.ProdCode)\Repository")) {
+    if (Test-Path "$($RepositoryPath)\$OSVER\$($Model.Model) $($Model.ProdCode)\Repository") { Log -Message "Repository for model $($Model.Model) aka $($Model.ProdCode) already exists" -LogFile $LogFile }
+    if (-not (Test-Path "$($RepositoryPath)\$OSVER\$($Model.Model) $($Model.ProdCode)\Repository")) {
         Log -Message "Repository for $($Model.Model) $($Model.ProdCode) does not exist, creating now" -LogFile $LogFile
-        New-Item -ItemType Directory -Path "$($RepositoryPath)\$($Model.OSVER)\$($Model.Model) $($Model.ProdCode)\Repository"
-        if (Test-Path "$($RepositoryPath)\$($Model.OSVER)\$($Model.Model) $($Model.ProdCode)\Repository") {
+        New-Item -ItemType Directory -Path "$($RepositoryPath)\$OSVER\$($Model.Model) $($Model.ProdCode)\Repository"
+        if (Test-Path "$($RepositoryPath)\$OSVER\$($Model.Model) $($Model.ProdCode)\Repository") {
             Log -Message "$($Model.Model) $($Model.ProdCode) HPIA folder and repository subfolder successfully created" -LogFile $LogFile
             }
         else {
@@ -257,11 +272,11 @@ $GLOBAL:UpdatePackage = $False
             Exit
         }
     }
-    if (-not (Test-Path "$($RepositoryPath)\$($Model.OSVER)\$($Model.Model) $($Model.ProdCode)\Repository\.repository")) {
+    if (-not (Test-Path "$($RepositoryPath)\$OSVER\$($Model.Model) $($Model.ProdCode)\Repository\.repository")) {
         Log -Message "Repository not initialized, initializing now" -LogFile $LogFile
-        Set-Location -Path "$($RepositoryPath)\$($Model.OSVER)\$($Model.Model) $($Model.ProdCode)\Repository"
+        Set-Location -Path "$($RepositoryPath)\$OSVER\$($Model.Model) $($Model.ProdCode)\Repository"
         Initialize-Repository
-        if (Test-Path "$($RepositoryPath)\$($Model.OSVER)\$($Model.Model) $($Model.ProdCode)\Repository\.repository") {
+        if (Test-Path "$($RepositoryPath)\$OSVER\$($Model.Model) $($Model.ProdCode)\Repository\.repository") {
             Log -Message "$($Model.Model) $($Model.ProdCode) repository successfully initialized" -LogFile $LogFile
         }
         else {
@@ -271,7 +286,7 @@ $GLOBAL:UpdatePackage = $False
     }    
     
     Log -Message "Set location to $($Model.Model) $($Model.ProdCode) repository" -LogFile $LogFile
-    Set-Location -Path "$($RepositoryPath)\$($Model.OSVER)\$($Model.Model) $($Model.ProdCode)\Repository"
+    Set-Location -Path "$($RepositoryPath)\$OSVER\$($Model.Model) $($Model.ProdCode)\Repository"
     
     if ($XMLEnableSMTP.Enabled -eq "True")
     {
@@ -328,7 +343,7 @@ $GLOBAL:UpdatePackage = $False
         Log -Message "Not applying repository filter to download $($Model.Model) for: DriverPack" -type 1 -LogFile $LogFile
     }
     
-    Log -Message "Invoking repository sync for $($Model.Model) $($Model.ProdCode) repository $os $($Model.OSVER), $Category1 and $Category2 and $Category3 and $Category4" -LogFile $LogFile
+    Log -Message "Invoking repository sync for $($Model.Model) $($Model.ProdCode) repository $os, $($Model.OSVER), $Category1 and $Category2 and $Category3 and $Category4" -LogFile $LogFile
     Invoke-RepositorySync
 
     Set-RepositoryConfiguration -Setting OfflineCacheMode -CacheValue Enable
@@ -338,9 +353,9 @@ $GLOBAL:UpdatePackage = $False
     Log -Message "Invoking repository cleanup for $($Model.Model) $($Model.ProdCode) repository for $Category1 and $Category2 and $Category3 and $Category4 categories" -LogFile $LogFile
     Invoke-RepositoryCleanup
     Set-RepositoryConfiguration -Setting OfflineCacheMode -CacheValue Enable
-    Log -Message "Confirm HPIA files are up to date for $($Model.Model) $($Model.ProdCode) " -LogFile $LogFile # Vad gör Robocopy etc?
+    Log -Message "Confirm HPIA files are up to date for $($Model.Model) $($Model.ProdCode) " -LogFile $LogFile # Vad gï¿½r Robocopy etc?
     $RobocopySource = "$($RepositoryPath)\HPIA Base"
-    $RobocopyDest = "$($RepositoryPath)\$($Model.OSVER)\$($Model.Model) $($Model.ProdCode)"
+    $RobocopyDest = "$($RepositoryPath)\$OSVER\$($Model.Model) $($Model.ProdCode)"
     $RobocopyArg = '"'+$RobocopySource+'"'+' "'+$RobocopyDest+'"'+' /E'
     $RobocopyCmd = "robocopy.exe"
     Start-Process -FilePath $RobocopyCmd -ArgumentList $RobocopyArg -Wait
@@ -358,10 +373,10 @@ $GLOBAL:UpdatePackage = $False
     Set-location "$($SiteCode):\"
 
     $SourcesLocation = $RobocopyDest
-    $PackageName = "HPIA-$($Model.OSVER)-" + "$($Model.Model)-" + "$($Model.ProdCode)" #Must be below 40 characters
-    $PackageDescription = "$($Model.OSVER)-" + "$($Model.Model)-" + "$($Model.ProdCode)"
+    $PackageName = "HPIA-$OSVER-" + "$($Model.Model)-" + "$($Model.ProdCode)" #Must be below 40 characters
+    $PackageDescription = "$OSVER-" + "$($Model.Model)-" + "$($Model.ProdCode)"
     $PackageManufacturer = "HP"
-    $PackageVersion = "$($Model.OSVER)"
+    $PackageVersion = "$OSVER"
     $SilentInstallCommand = ""
     
     $PackageExist = Get-CMPackage -Fast -Name $PackageName
@@ -384,12 +399,12 @@ $GLOBAL:UpdatePackage = $False
         #Write-Host "Package Already Exist"
         #Write-Host "Updatepackage: $GLOBAL:UpdatePackage"
         If ($GLOBAL:UpdatePackage -eq $True){
-            #Write-Host "Changes Made: Updating $PackageName"
+            Write-Host "Changes Made: Updating $PackageName" -ForegroundColor Green
             Log -Message "Changes Made: Updating $PackageName on DistributionPoint" -type 2 -LogFile $LogFile
             Update-CMDistributionPoint -PackageName "$PackageName"
         }
         Else {
-            #Write-Host "No Changes Made, not updating $PackageName"
+            Write-Host "No Changes Made, not updating $PackageName" -ForegroundColor Green
              Log -Message "No Changes Made, not updating $PackageName on DistributionPoint" -type 2 -LogFile $LogFile
 
         }
