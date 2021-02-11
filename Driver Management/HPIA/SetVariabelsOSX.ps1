@@ -1,4 +1,4 @@
-﻿$URI = "https://lksrvsccm03.res.ludvika.intra/ConfigMgrWebService/ConfigMgr.asmx"
+﻿$URI = "https://test.test.lab/ConfigMgrWebService/ConfigMgr.asmx"
 $SecretKey = "686c6eac-7e15-4ae6-bea3-2c4a31a1d44f"
 $Filter = "HPIA-20H2-" + (Get-WmiObject -Class:Win32_ComputerSystem).Model + " " + (Get-WmiObject -Class:Win32_BaseBoard).Product
 
