@@ -1,6 +1,6 @@
- # Author: Daniel Gråhns, Nicklas Eriksson
+# Author: Daniel Gråhns, Nicklas Eriksson
 # Date: 2021-02-11
-# Purpose: Download HP Drivers to repository and use with Webservice and TaskSequence
+# Purpose: Download HP Drivers to repository and use with ConfigMgr Webservice from MSEndpointMgr.com and TaskSequence
 #
 # Version: 1.0
 # Changelog: 1.0 - 2021-02-11 - Nicklas Eriksson -  Script Edited and fixed Daniels crappy hack and slash code :)
@@ -18,7 +18,7 @@ param(
 $ScriptVersion = "1.0"
 
 
-#$Config = "E:\Scripts\ImportHPIA\Config.xml"
+#$Config = "E:\Scripts\ImportHPIA\Config.xml" (.\ImportHPIA.ps1 -config .\config.xml)
 
 if (Test-Path -Path $Config) {
         try { 
@@ -36,26 +36,26 @@ if (Test-Path -Path $Config) {
  
 
 # Getting information from Config File
+$InstallPath = $Xml.Configuration.Install | Where-Object {$_.Name -like 'InstallPath'} | Select-Object -ExpandProperty "Value"
+$XMLInstallHPIA = $Xml.Configuration.Install | Where-Object {$_.Name -like 'InstallHPIA'} | Select-Object 'Enabled','Value'
+$SiteCode = $Xml.Configuration.Install | Where-Object {$_.Name -like 'SiteCode'} | Select-Object -ExpandProperty 'Value'
+$CMFolderPath = $Xml.Configuration.Install | Where-Object {$_.Name -like 'CMFolderPath'} | Select-Object -ExpandProperty 'Value'
+$ConfigMgrModule = $Xml.Configuration.Install | Where-Object {$_.Name -like 'ConfigMgrModule'} | Select-Object -ExpandProperty 'Value'
+$InstallHPCML = $Xml.Configuration.Install | Where-Object {$_.Name -like 'InstallHPCML'} | Select-Object -ExpandProperty 'Enabled'
+$RepositoryPath = $Xml.Configuration.Install | Where-Object {$_.Name -like 'RepositoryPath'} | Select-Object -ExpandProperty 'Value'
+$SupportedModelsCSV = $Xml.Configuration.Install | Where-Object {$_.Name -like 'SupportComputerModels'} | Select-Object -ExpandProperty 'Value'
 $XMLSSMONLY = $Xml.Configuration.Feature | Where-Object {$_.Name -like 'SSMOnly'} | Select-Object -ExpandProperty 'Enabled'
 $XMLCategory1 = $Xml.Configuration.Feature | Where-Object {$_.Name -like 'Category1'} | Select-Object -ExpandProperty 'Enabled'
 $XMLCategory2 = $Xml.Configuration.Feature | Where-Object {$_.Name -like 'Category2'} | Select-Object -ExpandProperty 'Enabled'
 $XMLCategory3 = $Xml.Configuration.Feature | Where-Object {$_.Name -like 'Category3'} | Select-Object -ExpandProperty 'Enabled'
 $XMLCategory4 = $Xml.Configuration.Feature | Where-Object {$_.Name -like 'Category4'} | Select-Object -ExpandProperty 'Enabled'
 $DPGroupName = $Xml.Configuration.Feature | Where-Object {$_.Name -like 'DPGroupName'} | Select-Object -ExpandProperty 'Value'
-$InstallHPCML = $Xml.Configuration.Option | Where-Object {$_.Name -like 'InstallHPCML'} | Select-Object -ExpandProperty 'Enabled'
-$XMLInstallHPIA = $Xml.Configuration.Option | Where-Object {$_.Name -like 'InstallHPIA'} | Select-Object 'Enabled','Value'
-$XMLLogfile = $Xml.Configuration.Option | Where-Object {$_.Name -like 'Logfile'} | Select-Object -ExpandProperty 'Value'
-$RepositoryPath = $Xml.Configuration.Option | Where-Object {$_.Name -like 'RepositoryPath'} | Select-Object -ExpandProperty 'Value'
-$InstallPath = $Xml.Configuration.Option | Where-Object {$_.Name -like 'InstallPath'} | Select-Object -ExpandProperty "Value"
-$SiteCode = $Xml.Configuration.Option | Where-Object {$_.Name -like 'SiteCode'} | Select-Object -ExpandProperty 'Value'
-$CMFolderPath = $Xml.Configuration.Option | Where-Object {$_.Name -like 'CMFolderPath'} | Select-Object -ExpandProperty 'Value'
-$ConfigMgrModule = $Xml.Configuration.Option | Where-Object {$_.Name -like 'ConfigMgrModule'} | Select-Object -ExpandProperty 'Value'
-$SupportedModelsCSV = $Xml.Configuration.Option | Where-Object {$_.Name -like 'SupportComputerModels'} | Select-Object -ExpandProperty 'Value'
 $XMLEnableSMTP = $Xml.Configuration.Option | Where-Object {$_.Name -like 'EnableSMTP'} | Select-Object 'Enabled','SMTP',"Adress"
+#$XMLLogfile = $Xml.Configuration.Option | Where-Object {$_.Name -like 'Logfile'} | Select-Object -ExpandProperty 'Value'
 
 
 # Hardcoded variabels in the script.
-$LogFile = "$XMLLogfile\RepoUpdate.log" #Filename for the logfile.
+$LogFile = "$InstallPath\RepoUpdate.log" #Filename for the logfile.
 $OS = "Win10" #OS do not change this.
 
 
@@ -95,8 +95,9 @@ LOg -LogFile $LogFile "Powershellscript was started with scriptversion: $($Scrip
 if ($InstallHPCML -eq "True")
 {
         Log -Message "HPCML was  enbabled to autoinstall in ConfigFile, starting to install HPCML" -type 1 -LogFile $LogFile
-        Install-PackageProvider -Name NuGet -Force # make sure Package NuGet is up to date 
-        Install-Module -Name PowerShellGet  -Force # install the latest version of PowerSHellGet module
+        [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
+        # make sure Package NuGet is up to date 
+        Install-Module -Name PowerShellGet -Force # install the latest version of PowerSHellGet module
         Install-Module -Name HPCMSL -Force -AcceptLicense
         Log -Message "HPCML was  successfully updated" -type 1 -LogFile $LogFile
 
@@ -202,7 +203,7 @@ else
 if ($SupportedModelsCSV -match ".csv") 
 {
 				$ModelsToImport = Import-Csv -Path $SupportedModelsCSV
-				Log -Message "Info: $($ModelsToImport.Model.Count) models found" -Type 1 -LogFile $
+				Log -Message "Info: $($ModelsToImport.Model.Count) models found" -Type 1 -LogFile $LogFile
 }
 
 $HPModelsTable = foreach ($Model in $ModelsToImport)
@@ -213,9 +214,6 @@ $HPModelsTable = foreach ($Model in $ModelsToImport)
     Log -Message "Added $($Model.ProductCode) $($Model.Model) $($Model.WindowsVersion) to download list" -type 1 -LogFile $LogFile
 
 }
-
-
-
 
 foreach ($Model in $HPModelsTable) {
     
@@ -244,7 +242,7 @@ foreach ($Model in $HPModelsTable) {
     $writeaction = { $path = $Event.SourceEventArgs.FullPath
                 $changeType = $Event.SourceEventArgs.ChangeType
                 $logline = "$(Get-Date), $changeType, $path"
-                Write-Host $logline #Add-content "C:\D_EMS Drive\Personal\LBLOG\FileWatcher_log.txt" -value $logline
+                Write-Host $logline #Add-content
                 Write-Host "Setting Update Package to True"
                 $GLOBAL:UpdatePackage = $True
                 Write-Host "Write Action $UpdatePackage"
@@ -353,10 +351,10 @@ foreach ($Model in $HPModelsTable) {
     Log -Message "Invoking repository cleanup for $($Model.Model) $($Model.ProdCode) repository for $Category1 and $Category2 and $Category3 and $Category4 categories" -LogFile $LogFile
     Invoke-RepositoryCleanup
     Set-RepositoryConfiguration -Setting OfflineCacheMode -CacheValue Enable
-    Log -Message "Confirm HPIA files are up to date for $($Model.Model) $($Model.ProdCode) " -LogFile $LogFile # Vad g�r Robocopy etc?
-    $RobocopySource = "$($RepositoryPath)\HPIA Base"
+    Log -Message "Confirm HPIA files are up to date for $($Model.Model) $($Model.ProdCode) " -LogFile $LogFile 
+    $RobocopySource = "$($XMLInstallHPIA.Value)\HPIA Base"
     $RobocopyDest = "$($RepositoryPath)\$OSVER\$($Model.Model) $($Model.ProdCode)"
-    $RobocopyArg = '"'+$RobocopySource+'"'+' "'+$RobocopyDest+'"'+' /E'
+    $RobocopyArg = '"'+$RobocopySource+'"'+' "'+$RobocopyDest+'"'+' /xc /xn /xo /fft /e /b /copyall'
     $RobocopyCmd = "robocopy.exe"
     Start-Process -FilePath $RobocopyCmd -ArgumentList $RobocopyArg -Wait
 
