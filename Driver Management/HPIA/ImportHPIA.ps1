@@ -5,7 +5,8 @@
  Version: 1.0
  Changelog: 1.0 - 2021-02-11 - Nicklas Eriksson -  Script Edited and fixed Daniels crappy hack and slash code :)
             1.1 - 2021-02-18 - Nicklas Eriksson - Added HPIA to download to HPIA Download instead to Root Directory, Added BIOSPwd should be copy to HPIA so BIOS upgrades can be run during OSD. 
-         
+ TO-Do
+ - Can we create an if around this Monitor changes if the path exists go into there if not skip since it throws an error?
  Credit, inspiration and copy/paste code from: garytown.com, dotnet-helpers.com, ConfigMgr.com, www.imab.dk, Ryan Engstrom
 #>
 
@@ -255,6 +256,7 @@ foreach ($Model in $HPModelsTable) {
 
     $GLOBAL:UpdatePackage = $False
 #==============Monitor Changes for Update Package======================================================
+   
    $filewatcher = New-Object System.IO.FileSystemWatcher
     
     #Mention the folder to monitor
