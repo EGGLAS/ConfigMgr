@@ -4,7 +4,7 @@
 
  Version: 1.0
  Changelog: 1.0 - 2021-02-11 - Nicklas Eriksson -  Script Edited and fixed Daniels crappy hack and slash code :)
-            1.1 - 2021-02-18 - Nicklas Eriksson - Added HPIA to download to HPIA Download instead to Root Directory. 
+            1.1 - 2021-02-18 - Nicklas Eriksson - Added HPIA to download to HPIA Download instead to Root Directory, Added BIOSPwd should be copy to HPIA so BIOS upgrades can be run during OSD. 
          
  Credit, inspiration and copy/paste code from: garytown.com, dotnet-helpers.com, ConfigMgr.com, www.imab.dk, Ryan Engstrom
 #>
@@ -137,9 +137,23 @@ if ($XMLInstallHPIA.Enabled -eq "True")
 }
 else
 {
-    Log -Message "HPIA was not enbabled to autoinstall in ConfigFile" -type 1 -LogFile $LogFile
+    Log -Message "HPIA was not enabled to autoinstall in ConfigFile" -type 1 -LogFile $LogFile
 
 }
+
+# Copy BIOS PWD 
+$BIOS = Get-ChildItem -Path "$($XMLInstallHPIA.Value)\*.bin"
+if ((Test-path -Path "$($XMLInstallHPIA.Value)\HPIA Base\$($BIOS.Name)") -eq $false)
+{
+    Log -Message "BIOS File does not exists, need to copy file to HPIA." -type 1 -LogFile $LogFile
+    Copy-Item -Path $BIOS -Destination "$($XMLInstallHPIA.Value)\HPIA Base"
+}
+else
+{
+    Log -Message "BIOS File exists in HPIA or does not exits in root, no need to copy" -type 1 -LogFile $LogFile
+
+}
+
 
 # If HPIA Installer was not updated, set false flag value
 
