@@ -428,13 +428,13 @@ foreach ($Model in $HPModelsTable) {
         #Write-Host "Package Already Exist"
         #Write-Host "Updatepackage: $GLOBAL:UpdatePackage"
         If ($GLOBAL:UpdatePackage -eq $True){
-            Write-Host "Changes Made: Updating $PackageName" -ForegroundColor Green
-            Log -Message "Changes Made: Updating $PackageName on DistributionPoint" -type 2 -LogFile $LogFile
+            Write-Host "Changes was made updating ConfigMgrPkg: $PackageName" -ForegroundColor Green
+            Log -Message "Changes made Updating ConfigMgrPkg: $PackageName on DistributionPoint" -type 2 -LogFile $LogFile
             Update-CMDistributionPoint -PackageName "$PackageName"
         }
         Else {
-            Write-Host "No Changes Made, not updating $PackageName" -ForegroundColor Green
-            Log -Message "No Changes Made, not updating $PackageName on DistributionPoint" -type 2 -LogFile $LogFile
+            Write-Host "No Changes was Made, not updating ConfigMgrPkg: $PackageName on DistributionPoint" -ForegroundColor Green
+            Log -Message "No Changes was Made, not updating ConfigMgrPkg: $PackageName on DistributionPoint" -type 2 -LogFile $LogFile
 
         }
             Set-Location -Path $($InstallPath)
