@@ -115,15 +115,15 @@ else
 # Check if HPIA Installer was updated and create download folder for HPIA.
 if ((Test-path -Path "$($XMLInstallHPIA.Value)\HPIA Download") -eq $false)
 {
-    Log -Message "HPIA Download folder does not exists, creating" -type 1 -LogFile $LogFile
-    Write-host "HPIA Download folder does not exists, creating"
+    Log -Message "HPIA Download folder does not exists, creating HPIA Download folder" -type 1 -LogFile $LogFile
+    Write-host "HPIA Download folder does not exists, creating HPIA Download folder"
     New-Item -ItemType Directory -Path "$($XMLInstallHPIA.Value)\HPIA Download"
     New-Item -ItemType File -Path "$($XMLInstallHPIA.Value)\HPIA Download\Dont Delete the latest SP-file.txt"
 }
 else
 {
-    Log -Message "HPIA Download folder exists, skipping" -type 1 -LogFile $LogFile
-    Write-host "HPIA Download folder exists, skipping"
+    Log -Message "HPIA Download folder exists, no need to create folder" -type 1 -LogFile $LogFile
+    Write-host "HPIA Download folder exists, no need to create folder"
 }
 
 $CurrentHPIAVersion = Get-ChildItem "$($XMLInstallHPIA.Value)\HPIA Download" -Name SP*.*
@@ -315,61 +315,50 @@ foreach ($Model in $HPModelsTable) {
     Log -Message "Set location to $($Model.Model) $($Model.ProdCode) repository" -LogFile $LogFile
     Set-Location -Path "$($RepositoryPath)\$OSVER\$($Model.Model) $($Model.ProdCode)\Repository"
     
-    if ($XMLEnableSMTP.Enabled -eq "True")
-    {
+    if ($XMLEnableSMTP.Enabled -eq "True") {
         Set-RepositoryNotificationConfiguration $SMTP
         Add-RepositorySyncFailureRecipient -to $EMAIL
         Log -Message "Configured notification for $($Model.Model) $($Model.ProdCode) with SMTP: $SMTP and Email: $EMAIL" -LogFile $LogFile
-        
     }  
     
     Log -Message "Remove any existing repository filter for $($Model.Model) repository" -LogFile $LogFile
     Remove-RepositoryFilter -platform $($Model.ProdCode) -yes
     
     Log -Message "Applying repository filter for $($Model.Model) repository" -LogFile $LogFile
-    if ($XMLCategory1 -eq "True")
-    {
+    if ($XMLCategory1 -eq "True") {
            Add-RepositoryFilter -platform $($Model.ProdCode) -os $OS -osver $($Model.OSVER) -category $Category1
            Log -Message "Applying repository filter to $($Model.Model) repository to download: $Category1" -type 1 -LogFile $LogFile
 
     }
-    else
-    {
+    else {
         Log -Message "Not applying repository filter to download $($Model.Model) for: dock" -type 1 -LogFile $LogFile
 
     }
-    if ($XMLCategory2 -eq "True")
-    {
+    if ($XMLCategory2 -eq "True") {
         Add-RepositoryFilter -platform $($Model.ProdCode) -os $OS -osver $($Model.OSVER) -category $Category2
         Log -Message "Applying repository filter to $($Model.Model) repository to download: $Category2" -type 1 -LogFile $LogFile
 
     }
-    else
-    {
+    else {
         Log -Message "Not applying repository filter to download $($Model.Model) for: Driver" -type 1 -LogFile $LogFile
 
     }
-    if ($XMLCategory3 -eq "True")
-    {
+    if ($XMLCategory3 -eq "True") {
         Add-RepositoryFilter -platform $($Model.ProdCode) -os $OS -osver $($Model.OSVER) -category $Category3
         Log -Message "Applying repository filter to $($Model.Model) repository to download: $Category3" -type 1 -LogFile $LogFile
     }
-    else
-    {
+    else {
         Log -Message "Not applying repository filter to download $($Model.Model) for: Firmware" -type 2 -LogFile $LogFile
-
     }
-    if ($XMLCategory4 -eq "True")
-    {
+    if ($XMLCategory4 -eq "True") {
         Add-RepositoryFilter -platform $($Model.ProdCode) -os $OS -osver $($Model.OSVER) -category $Category4
         Log -Message "Applying repository filter to $($Model.Model) repository to download: $Category4" -type 2 -LogFile $LogFile
 
     }
-    else
-    {
+    else {
         Log -Message "Not applying repository filter to download $($Model.Model) for: DriverPack" -type 1 -LogFile $LogFile
     }
-    
+
     Log -Message "Invoking repository sync for $($Model.Model) $($Model.ProdCode) repository $os, $($Model.OSVER), $Category1 and $Category2 and $Category3 and $Category4" -LogFile $LogFile
     Write-host "Invoking repository sync for $($Model.Model) $($Model.ProdCode) repository $os, $($Model.OSVER), $Category1 and $Category2 and $Category3 and $Category4"
     Invoke-RepositorySync
