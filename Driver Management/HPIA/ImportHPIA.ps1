@@ -1,12 +1,13 @@
-# Author: Daniel Gråhns, Nicklas Eriksson
-# Date: 2021-02-11
-# Purpose: Download HP Drivers to repository and use with ConfigMgr Webservice from MSEndpointMgr.com and TaskSequence
-#
-# Version: 1.0
-# Changelog: 1.0 - 2021-02-11 - Nicklas Eriksson -  Script Edited and fixed Daniels crappy hack and slash code :)
-#         
-# Credit, inspiration and copy/paste code from: garytown.com, dotnet-helpers.com, ConfigMgr.com, www.imab.dk
-# To Run the script: .\ImportHPIA.ps1 -config .\config.xml)
+<# Author: Daniel Gråhns, Nicklas Eriksson
+ Date: 2021-02-11
+ Purpose: Download HP Drivers to repository and use with Webservice and TaskSequence
+
+ Version: 1.0
+ Changelog: 1.0 - 2021-02-11 - Nicklas Eriksson -  Script Edited and fixed Daniels crappy hack and slash code :)
+            1.1 - 2021-02-18 - Nicklas Eriksson - Added HPIA to download to HPIA Download instead to Root Directory. 
+         
+ Credit, inspiration and copy/paste code from: garytown.com, dotnet-helpers.com, ConfigMgr.com, www.imab.dk, Ryan Engstrom
+#>
 
 [CmdletBinding()]
 param(
@@ -14,16 +15,21 @@ param(
     [string]$Config
 )
 
-$ScriptVersion = "1.0"
 
-#$Config = "E:\Scripts\ImportHPIA\Config.xml" # (.\ImportHPIA.ps1 -config .\config.xml)
+$ScriptVersion = "1.1"
+
+
+#$Config = "E:\Scripts\ImportHPIA\Config.xml" #(.\ImportHPIA.ps1 -config .\config.xml)
 
 if (Test-Path -Path $Config) {
         try { 
             $Xml = [xml](Get-Content -Path $Config -Encoding UTF8)
+            #Log -Message "Successfully loaded $Config" -LogFile $Logfile
         }
         catch {
             $ErrorMessage = $_.Exception.Message
+            #Log -Message "Error, could not read $Config" -Level Error -LogFile $Logfile
+            #Log -Message "Error message: $ErrorMessage" -Level Error -LogFile $Logfile
             Exit 1
         }
 
@@ -50,7 +56,7 @@ $XMLEnableSMTP = $Xml.Configuration.Option | Where-Object {$_.Name -like 'Enable
 
 
 # Hardcoded variabels in the script.
-$LogFile = "$InstallPath\RepoUpdate.log" #Filename for the logfile.
+$LogFile = "$InstallPath\RepositoryUpdate.log" #Filename for the logfile.
 $OS = "Win10" #OS do not change this.
 
 
@@ -82,19 +88,19 @@ Type: 1 = Normal, 2 = Warning (yellow), 3 = Error (red)
 }
 
 
-Log -LogFile $LogFile "<--------------------------------------------------------------------------------------------------------------------->"  -type 2
-Log -Message "Successfully loaded $Config" -LogFile $Logfile
-LOg -LogFile $LogFile "Powershellscript was started with scriptversion: $($ScriptVersion)" -type 1
+Log  -Message  "<--------------------------------------------------------------------------------------------------------------------->"  -type 2 -LogFile $LogFile
+Log -Message "Successfully loaded ConfigFile from $Config" -LogFile $Logfile
+LOg -Message "Script was started with version: $($ScriptVersion)" -type 1 -LogFile $LogFile 
 
 # CHeck if HPCML should autoupdate from Powershell gallery if's specified in the config.
 if ($InstallHPCML -eq "True")
 {
-        Log -Message "HPCML was  enbabled to autoinstall in ConfigFile, starting to install HPCML" -type 1 -LogFile $LogFile
+        Log -Message "HPCML was enbabled to autoinstall in ConfigFile, starting to install HPCML" -type 1 -LogFile $LogFile
         [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
         # make sure Package NuGet is up to date 
         Install-Module -Name PowerShellGet -Force # install the latest version of PowerSHellGet module
         Install-Module -Name HPCMSL -Force -AcceptLicense
-        Log -Message "HPCML was  successfully updated" -type 1 -LogFile $LogFile
+        Log -Message "HPCML was successfully updated" -type 1 -LogFile $LogFile
 
 }
 else
@@ -103,12 +109,29 @@ else
 
 }
 
+# Check if HPIA Installer was updated and create download folder for HPIA.
+if ((Test-path -Path "$($XMLInstallHPIA.Value)\HPIA Download") -eq $false)
+{
+    Log -Message "HPIA Download folder does not exists, creating" -type 1 -LogFile $LogFile
+    New-Item -ItemType Directory -Path "$($XMLInstallHPIA.Value)\HPIA Download"
+    New-Item -ItemType File -Path "$($XMLInstallHPIA.Value)\HPIA Download\Dont Delete the latest SP-file.txt"
+}
+else
+{
+    Log -Message "HPIA Download folder exists, skipping" -type 1 -LogFile $LogFile
+
+}
+
+$CurrentHPIAVersion = Get-ChildItem "$($XMLInstallHPIA.Value)\HPIA Download" -Name SP*.*
+
 # CHeck if HPIA should autoupdate from HP if's specified in the config.
 
 if ($XMLInstallHPIA.Enabled -eq "True")
 {
         Log -Message "HPIA was  enbabled to autoinstall in ConfigFile, starting to autoupdate HPIA" -type 1 -LogFile $LogFile
+        Set-location -Path "$($XMLInstallHPIA.Value)\HPIA Download"
         Install-HPImageAssistant -Extract -DestinationPath "$($XMLInstallHPIA.Value)\HPIA Base"
+        Set-Location -path $InstallPath
         Log -Message "HPIA was  successfully updated in $($XMLInstallHPIA.Value)\HPIA Base" -type 1 -LogFile $LogFile
         
 }
@@ -117,6 +140,18 @@ else
     Log -Message "HPIA was not enbabled to autoinstall in ConfigFile" -type 1 -LogFile $LogFile
 
 }
+
+# If HPIA Installer was not updated, set false flag value
+
+$NewHPIAVersion = Get-ChildItem "$($XMLInstallHPIA.Value)\HPIA Download" -Name SP*.* -ErrorAction SilentlyContinue
+
+if($CurrentHPIAVersion -eq $NewHPIAVersion) {
+    $HPIAVersionUpdated = "False"
+    Log -Message "HPIA was not updated, skipping to set HPIA to copy to driverpackages." -type 1 -LogFile $LogFile
+    } else {
+    $HPIAVersionUpdated = "True"
+    Log -Message "HPIA was updated." -type 1 -LogFile $LogFile
+    }
 
 # Check if SSM is enabled in the config.
 if ($XMLSSMONLY -eq "True")
@@ -209,6 +244,9 @@ $HPModelsTable = foreach ($Model in $ModelsToImport)
     Log -Message "Added $($Model.ProductCode) $($Model.Model) $($Model.WindowsVersion) to download list" -type 1 -LogFile $LogFile
 
 }
+
+
+
 
 foreach ($Model in $HPModelsTable) {
     
@@ -346,13 +384,23 @@ foreach ($Model in $HPModelsTable) {
     Log -Message "Invoking repository cleanup for $($Model.Model) $($Model.ProdCode) repository for $Category1 and $Category2 and $Category3 and $Category4 categories" -LogFile $LogFile
     Invoke-RepositoryCleanup
     Set-RepositoryConfiguration -Setting OfflineCacheMode -CacheValue Enable
-    Log -Message "Confirm HPIA files are up to date for $($Model.Model) $($Model.ProdCode) " -LogFile $LogFile 
-    $RobocopySource = "$($XMLInstallHPIA.Value)\HPIA Base"
-    $RobocopyDest = "$($RepositoryPath)\$OSVER\$($Model.Model) $($Model.ProdCode)"
-    $RobocopyArg = '"'+$RobocopySource+'"'+' "'+$RobocopyDest+'"'+' /xc /xn /xo /fft /e /b /copyall'
-    $RobocopyCmd = "robocopy.exe"
-    Start-Process -FilePath $RobocopyCmd -ArgumentList $RobocopyArg -Wait
+    Log -Message "Confirm HPIA files are up to date for $($Model.Model) $($Model.ProdCode) " -LogFile $LogFile #Robocopy
 
+    if ($HPIAVersionUpdated -eq "True") {
+        Write-Host "Running HPIA Update"
+        Log -Message "Running HPIA Update" -type 1 -LogFile $LogFile
+        $RobocopySource = "$($XMLInstallHPIA.Value)\HPIA Base"
+        $RobocopyDest = "$($RepositoryPath)\$OSVER\$($Model.Model) $($Model.ProdCode)"
+        $RobocopyArg = '"'+$RobocopySource+'"'+' "'+$RobocopyDest+'"'+' /xc /xn /xo /fft /e /b /copyall'
+        $RobocopyCmd = "robocopy.exe"
+        Start-Process -FilePath $RobocopyCmd -ArgumentList $RobocopyArg -Wait
+    
+        } else {
+
+            Write-Host "No need to update HPIA, skipping."
+            Log -Message "No need to update HPIA, skipping." -type 1 -LogFile $LogFile
+
+        }
 
 
 #==========Stop Monitoring Changes===================
@@ -398,7 +446,7 @@ foreach ($Model in $HPModelsTable) {
         }
         Else {
             Write-Host "No Changes Made, not updating $PackageName" -ForegroundColor Green
-             Log -Message "No Changes Made, not updating $PackageName on DistributionPoint" -type 2 -LogFile $LogFile
+            Log -Message "No Changes Made, not updating $PackageName on DistributionPoint" -type 2 -LogFile $LogFile
 
         }
             Set-Location -Path $($InstallPath)
