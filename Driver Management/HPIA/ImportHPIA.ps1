@@ -147,24 +147,18 @@ else
 
 }
 
-# Copy BIOS PWD 
-$BIOS = Get-ChildItem -Path "$($XMLInstallHPIA.Value)\*.bin"
-if ((Test-path -Path "$($XMLInstallHPIA.Value)\HPIA Base\$($BIOS.Name)") -eq $false)
-{
+# Copy BIOS PWD to HPIA. 
+$BIOS = Get-ChildItem -Path "$($XMLInstallHPIA.Value)\*.bin" # Check for any Password.BIN file. 
+if ((Test-path -Path "$($XMLInstallHPIA.Value)\HPIA Base\$($BIOS.Name)") -eq $false) {
     Write-Host "BIOS File does not exists, need to copy file to HPIA."
     Log -Message "BIOS File does not exists, need to copy file to HPIA." -type 1 -LogFile $LogFile
     Copy-Item -Path $BIOS -Destination "$($XMLInstallHPIA.Value)\HPIA Base"
-}
-else
-{
+} else {
     Write-host "BIOS File exists in HPIA or does not exits in root, no need to copy"
     Log -Message "BIOS File exists in HPIA or does not exits in root, no need to copy" -type 1 -LogFile $LogFile
-
 }
 
-
 # If HPIA Installer was not updated, set false flag value
-
 $NewHPIAVersion = Get-ChildItem "$($XMLInstallHPIA.Value)\HPIA Download" -Name SP*.* -ErrorAction SilentlyContinue
 
 if($CurrentHPIAVersion -eq $NewHPIAVersion) {
@@ -178,104 +172,77 @@ if($CurrentHPIAVersion -eq $NewHPIAVersion) {
     }
 
 # Check if SSM is enabled in the config.
-if ($XMLSSMONLY -eq "True")
-{
+if ($XMLSSMONLY -eq "True") {
     $SSMONLY = "ssm"
-}
-else
-{
+} else {
         Log -Message "SSM not enabled in ConfigFile" -type 1 -LogFile $LogFile
-
 }
 
 # Check if Category1 is enabled in the config.
-if ($XMLCategory1 -eq "True")
-{
+if ($XMLCategory1 -eq "True") {
     $Category1 = "dock"
     Log -Message "Added dock drivers for download" -type 1 -LogFile $LogFile
-
 }
-else
-{
+else{
         Log -Message "Not enabled to download dock in ConfigFile" -type 2 -LogFile $LogFile
-
 }
 
 # Check if Category2 is enabled in the config.
-if ($XMLCategory2 -eq "True")
-{
+if ($XMLCategory2 -eq "True") {
     $Category2 = "driver"
     Log -Message "Added drivers for download" -type 1 -LogFile $LogFile
-
 }
-else
-{
+else {
         Log -Message "Not Enabled to download drivers in ConfigFile" -type 2 -LogFile $LogFile
-
 }
 
 # Check if Category3 is enabled in the config.
-if ($XMLCategory3 -eq "True")
-{
+if ($XMLCategory3 -eq "True") {
     $Category3 = "firmware"
     Log -Message "Added firmware for download" -type 1 -LogFile $LogFile
-
 }
-else
-{
+else {
         Log -Message "Not Enabled to download firmware in ConfigFile" -type 1 -LogFile $LogFile
-
 }
 
 # Check if Category4 is enabled in the config.
-if ($XMLCategory4 -eq "True")
-{
+if ($XMLCategory4 -eq "True") {
     $Category4 = "driverpack"
     Log -Message "Added driverpacks for download" -type 1 -LogFile $LogFile
 
 }
-else
-{
+else {
         Log -Message "Not Enabled to download Driverpack in ConfigFile" -type 1 -LogFile $LogFile
-
 }
 # Check if Email notificaiton is enabled in the config.
-if ($XMLEnableSMTP.Enabled -eq "True")
-{
+if ($XMLEnableSMTP.Enabled -eq "True") {
     $SMTP = $($XMLEnableSMTP.SMTP)
     $EMAIL = $($XMLEnableSMTP.Adress)
     Log -Message "Added SMTP: $SMTP and EMAIL: $EMAIL" -type 1 -LogFile $LogFile
-
-}
-else
-{
+} 
+else {
         Log -Message "Email notification is not enabled in the Config" -type 1 -LogFile $LogFile
-
 }
 
-#Importing CSV file
-if ($SupportedModelsCSV -match ".csv") 
-{
+#Importing supported computer models CSV file
+if ($SupportedModelsCSV -match ".csv") {
 				$ModelsToImport = Import-Csv -Path $SupportedModelsCSV
 				Log -Message "Info: $($ModelsToImport.Model.Count) models found" -Type 1 -LogFile $LogFile
+                Write-host "Info: $($ModelsToImport.Model.Count) models found"
 }
 
-$HPModelsTable = foreach ($Model in $ModelsToImport)
-{
+$HPModelsTable = foreach ($Model in $ModelsToImport) {
     @(
     @{ ProdCode = "$($Model.ProductCode)"; Model = "$($Model.Model)"; OSVER = $Model.WindowsVersion }
     )
     Log -Message "Added $($Model.ProductCode) $($Model.Model) $($Model.WindowsVersion) to download list" -type 1 -LogFile $LogFile
-
+    Write-host "Added $($Model.ProductCode) $($Model.Model) $($Model.WindowsVersion) to download list" 
 }
-
-
-
 
 foreach ($Model in $HPModelsTable) {
     
     # Set OSVersion for 2009 to 20H2.  
-    if($Model.OSVER -eq "2009")
+    if($Model.OSVER -eq "2009") # Want to set OSVersion to 20H2 in ConfigMgr, and must use 2009 to download Drivers from HP.
     {
          $OSVER = "20H2"
          
