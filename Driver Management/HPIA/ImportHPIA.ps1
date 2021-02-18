@@ -450,7 +450,7 @@ foreach ($Model in $HPModelsTable) {
 
         }
             Set-Location -Path $($InstallPath)
-            Log -Message "Not applying repository filter to download $($Model.Model) for: $Category4" -type 1 -LogFile $LogFile
+            Log -Message "$($Model.Model) is done, contiune with next model in the list." -type 1 -LogFile $LogFile
     }
     
 }
