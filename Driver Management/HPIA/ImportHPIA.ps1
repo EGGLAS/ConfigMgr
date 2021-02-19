@@ -20,7 +20,7 @@ param(
 $ScriptVersion = "1.1"
 
 
-$Config = "E:\Scripts\ImportHPIA\Config.xml" #(.\ImportHPIA.ps1 -config .\config.xml)
+#$Config = "E:\Scripts\ImportHPIA\Config.xml" #(.\ImportHPIA.ps1 -config .\config.xml)
 
 if (Test-Path -Path $Config) {
         try { 
