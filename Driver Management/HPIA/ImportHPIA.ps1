@@ -256,7 +256,7 @@ foreach ($Model in $HPModelsTable) {
 
     $GLOBAL:UpdatePackage = $False
 #==============Monitor Changes for Update Package======================================================
-   
+
    $filewatcher = New-Object System.IO.FileSystemWatcher
     
     #Mention the folder to monitor
@@ -272,7 +272,7 @@ foreach ($Model in $HPModelsTable) {
                 Write-Host $logline #Add-content
                 Write-Host "Info: Setting Update Package to True"
                 $GLOBAL:UpdatePackage = $True
-                Write-Host "Info: Write Action $UpdatePackage"
+                #Write-Host "Info: Write Action $UpdatePackage"
               }
               
 ### DECIDE WHICH EVENTS SHOULD BE WATCHED
