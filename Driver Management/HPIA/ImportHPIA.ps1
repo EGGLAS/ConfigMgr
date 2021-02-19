@@ -20,7 +20,7 @@ param(
 $ScriptVersion = "1.1"
 
 
-#$Config = "E:\Scripts\ImportHPIA\Config.xml" #(.\ImportHPIA.ps1 -config .\config.xml)
+$Config = "E:\Scripts\ImportHPIA\Config.xml" #(.\ImportHPIA.ps1 -config .\config.xml)
 
 if (Test-Path -Path $Config) {
         try { 
@@ -156,20 +156,20 @@ if ((Test-path -Path "$($XMLInstallHPIA.Value)\HPIA Base\$($BIOS.Name)") -eq $fa
     Log -Message "BIOS File does not exists, need to copy file to HPIA." -type 1 -LogFile $LogFile
     Copy-Item -Path $BIOS -Destination "$($XMLInstallHPIA.Value)\HPIA Base"
 } else {
-    Write-host "Info: BIOS File exists in HPIA or does not exits in root, no need to copy" -ForegroundColor DarkYellow
+    Write-host "Info: BIOS File exists in HPIA or does not exits in root, no need to copy" -ForegroundColor Green
     Log -Message "BIOS File exists in HPIA or does not exits in root, no need to copy" -type 1 -LogFile $LogFile
 }
 
 # If HPIA Installer was not updated, set false flag value
-$NewHPIAVersion = Get-ChildItem "$($XMLInstallHPIA.Value)\HPIA Download" -Name SP*.* -ErrorAction SilentlyContinue
+$NewHPIAVersion = Get-ChildItem "$($XMLInstallHPIA.Value)\HPIA Download" -Name SP*.* -ErrorAction SilentlyContinue | select -last 1
 
 if($CurrentHPIAVersion -eq $NewHPIAVersion) {
     $HPIAVersionUpdated = "False"
-    Write-host "Info: HPIA was not updated, skipping to set HPIA to copy to driverpackages."
+    Write-host "Info: HPIA was not updated, skipping to set HPIA to copy to driverpackages." -ForegroundColor Green
     Log -Message "HPIA was not updated, skipping to set HPIA to copy to driverpackages." -type 1 -LogFile $LogFile
     } else {
     $HPIAVersionUpdated = "True"
-    Write-host "Info: HPIA was updated, will update in each driverpackage"
+    Write-host "Info: HPIA was updated, will update in each driverpackage" -ForegroundColor Green
     Log -Message "HPIA was updated will update HPIA in each Driverpackage" -type 1 -LogFile $LogFile
     }
 
