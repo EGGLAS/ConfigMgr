@@ -261,7 +261,7 @@ foreach ($Model in $HPModelsTable) {
     
     #Mention the folder to monitor
     $filewatcher.Path = "$($RepositoryPath)\$OSVER\$($Model.Model) $($Model.ProdCode)\"
-    $filewatcher.Filter = "*.*"
+    $filewatcher.Filter = "*.cva"
     #include subdirectories $true/$false
     $filewatcher.IncludeSubdirectories = $False
     $filewatcher.EnableRaisingEvents = $true  
