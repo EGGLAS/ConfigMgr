@@ -5,7 +5,8 @@
  Version: 1.0
  Changelog: 1.0 - 2021-02-11 - Nicklas Eriksson -  Script Edited and fixed Daniels crappy hack and slash code :)
             1.1 - 2021-02-18 - Nicklas Eriksson - Added HPIA to download to HPIA Download instead to Root Directory, Added BIOSPwd should be copy to HPIA so BIOS upgrades can be run during OSD. 
- TO-Do
+            1.2 - 2021-04-13 - Nicklas Eriksson - Bug fixed when if offline folder does not exists. Thanks to Andreas Molin who found this and corrected it.  
+            TO-Do
  - Can we create an if around this Monitor changes if the path exists go into there if not skip since it throws an error?
  Credit, inspiration and copy/paste code from: garytown.com, dotnet-helpers.com, ConfigMgr.com, www.imab.dk, Ryan Engstrom
 #>
@@ -17,7 +18,7 @@ param(
 )
 
 
-$ScriptVersion = "1.1"
+$ScriptVersion = "1.2"
 
 
 #$Config = "E:\Scripts\ImportHPIA\Config.xml" #(.\ImportHPIA.ps1 -config .\config.xml)
@@ -61,7 +62,7 @@ $LogFile = "$InstallPath\RepositoryUpdate.log" #Filename for the logfile.
 $OS = "Win10" #OS do not change this.
 
 
-function Log {
+function Get-Log {
     Param (
     [Parameter(Mandatory=$false)]
     $Message,
@@ -89,34 +90,34 @@ Type: 1 = Normal, 2 = Warning (yellow), 3 = Error (red)
 }
 
 
-Log  -Message  "<--------------------------------------------------------------------------------------------------------------------->"  -type 2 -LogFile $LogFile
+Get-Log  -Message  "<--------------------------------------------------------------------------------------------------------------------->"  -type 2 -LogFile $LogFile
 Write-host "Info: Successfully loaded ConfigFile from $Config"
-Log -Message "Successfully loaded ConfigFile from $Config" -LogFile $Logfile
-LOg -Message "Script was started with version: $($ScriptVersion)" -type 1 -LogFile $LogFile 
+Get-Log -Message "Successfully loaded ConfigFile from $Config" -LogFile $Logfile
+Get-LOg -Message "Script was started with version: $($ScriptVersion)" -type 1 -LogFile $LogFile 
 
 # CHeck if HPCML should autoupdate from Powershell gallery if's specified in the config.
 if ($InstallHPCML -eq "True")
 {
-        Log -Message "HPCML was enbabled to autoinstall in ConfigFile, starting to install HPCML" -type 1 -LogFile $LogFile
+        Get-Log -Message "HPCML was enbabled to autoinstall in ConfigFile, starting to install HPCML" -type 1 -LogFile $LogFile
         Write-host "Info: HPCML was enbabled to autoinstall in ConfigFile, starting to install HPCML"
         [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12 # Force Powershell to use TLS1.2
         # make sure Package NuGet is up to date 
         Install-Module -Name PowerShellGet -Force # install the latest version of PowerSHellGet module
         Install-Module -Name HPCMSL -Force -AcceptLicense
-        Log -Message "HPCML was successfully updated" -type 1 -LogFile $LogFile
+        Get-Log -Message "HPCML was successfully updated" -type 1 -LogFile $LogFile
         Write-host "Info: HPCML was successfully updated" -ForegroundColor Green
 
 }
 else
 {
-    Log -Message "HPCML was not enbabled to autoinstall from Powershell Gallery in ConfigFile" -type 1 -LogFile $LogFile
+    Get-Log -Message "HPCML was not enbabled to autoinstall from Powershell Gallery in ConfigFile" -type 1 -LogFile $LogFile
 
 }
 
 # Check if HPIA Installer was updated and create download folder for HPIA.
 if ((Test-path -Path "$($XMLInstallHPIA.Value)\HPIA Download") -eq $false)
 {
-    Log -Message "HPIA Download folder does not exists, creating HPIA Download folder" -type 1 -LogFile $LogFile
+    Get-Log -Message "HPIA Download folder does not exists, creating HPIA Download folder" -type 1 -LogFile $LogFile
     Write-host "Info: HPIA Download folder does not exists"
     Write-host "Info: Creating HPIA Download folder" -ForegroundColor Green
     New-Item -ItemType Directory -Path "$($XMLInstallHPIA.Value)\HPIA Download"
@@ -124,7 +125,7 @@ if ((Test-path -Path "$($XMLInstallHPIA.Value)\HPIA Download") -eq $false)
 }
 else
 {
-    Log -Message "HPIA Download folder exists, no need to create folder" -type 1 -LogFile $LogFile
+    Get-Log -Message "HPIA Download folder exists, no need to create folder" -type 1 -LogFile $LogFile
     Write-host "Info: HPIA Download folder exists, no need to create folder"
 }
 
@@ -134,18 +135,18 @@ $CurrentHPIAVersion = Get-ChildItem "$($XMLInstallHPIA.Value)\HPIA Download" -Na
 
 if ($XMLInstallHPIA.Enabled -eq "True")
 {
-        Log -Message "HPIA was  enbabled to autoinstall in ConfigFile, starting to autoupdate HPIA" -type 1 -LogFile $LogFile
+        Get-Log -Message "HPIA was  enbabled to autoinstall in ConfigFile, starting to autoupdate HPIA" -type 1 -LogFile $LogFile
         Write-host "Info: HPIA was  enbabled to autoinstall in ConfigFile, starting to autoupdate HPIA"
         Set-location -Path "$($XMLInstallHPIA.Value)\HPIA Download"
         Install-HPImageAssistant -Extract -DestinationPath "$($XMLInstallHPIA.Value)\HPIA Base"
         Set-Location -path $InstallPath
-        Log -Message "HPIA was  successfully updated in $($XMLInstallHPIA.Value)\HPIA Base" -type 1 -LogFile $LogFile
+        Get-Log -Message "HPIA was  successfully updated in $($XMLInstallHPIA.Value)\HPIA Base" -type 1 -LogFile $LogFile
         Write-host "Info: HPIA was  successfully updated in $($XMLInstallHPIA.Value)\HPIA Base" -ForegroundColor Green
         
 }
 else
 {
-    Log -Message "HPIA was not enabled to autoinstall in ConfigFile" -type 1 -LogFile $LogFile
+    Get-Log -Message "HPIA was not enabled to autoinstall in ConfigFile" -type 1 -LogFile $LogFile
     
 }
 
@@ -153,83 +154,83 @@ else
 $BIOS = Get-ChildItem -Path "$($XMLInstallHPIA.Value)\*.bin" # Check for any Password.BIN file. 
 if ((Test-path -Path "$($XMLInstallHPIA.Value)\HPIA Base\$($BIOS.Name)") -eq $false) {
     Write-Host "Info: BIOS File does not exists, need to copy file to HPIA."
-    Log -Message "BIOS File does not exists, need to copy file to HPIA." -type 1 -LogFile $LogFile
+    Get-Log -Message "BIOS File does not exists, need to copy file to HPIA." -type 1 -LogFile $LogFile
     Copy-Item -Path $BIOS -Destination "$($XMLInstallHPIA.Value)\HPIA Base"
 } else {
     Write-host "Info: BIOS File exists in HPIA or does not exits in root, no need to copy" -ForegroundColor Green
-    Log -Message "BIOS File exists in HPIA or does not exits in root, no need to copy" -type 1 -LogFile $LogFile
+    Get-Log -Message "BIOS File exists in HPIA or does not exits in root, no need to copy" -type 1 -LogFile $LogFile
 }
 
 # If HPIA Installer was not updated, set false flag value
-$NewHPIAVersion = Get-ChildItem "$($XMLInstallHPIA.Value)\HPIA Download" -Name SP*.* -ErrorAction SilentlyContinue | select -last 1
+$NewHPIAVersion = Get-ChildItem "$($XMLInstallHPIA.Value)\HPIA Download" -Name SP*.* -ErrorAction SilentlyContinue | Select-Object -last 1
 
 if($CurrentHPIAVersion -eq $NewHPIAVersion) {
     $HPIAVersionUpdated = "False"
     Write-host "Info: HPIA was not updated, skipping to set HPIA to copy to driverpackages." -ForegroundColor Green
-    Log -Message "HPIA was not updated, skipping to set HPIA to copy to driverpackages." -type 1 -LogFile $LogFile
+    Get-Log -Message "HPIA was not updated, skipping to set HPIA to copy to driverpackages." -type 1 -LogFile $LogFile
     } else {
     $HPIAVersionUpdated = "True"
     Write-host "Info: HPIA was updated, will update in each driverpackage" -ForegroundColor Green
-    Log -Message "HPIA was updated will update HPIA in each Driverpackage" -type 1 -LogFile $LogFile
+    Get-Log -Message "HPIA was updated will update HPIA in each Driverpackage" -type 1 -LogFile $LogFile
     }
 
 # Check if SSM is enabled in the config.
 if ($XMLSSMONLY -eq "True") {
     $SSMONLY = "ssm"
 } else {
-        Log -Message "SSM not enabled in ConfigFile" -type 1 -LogFile $LogFile
+        Get-Log -Message "SSM not enabled in ConfigFile" -type 1 -LogFile $LogFile
 }
 
 # Check if Category1 is enabled in the config.
 if ($XMLCategory1 -eq "True") {
     $Category1 = "dock"
-    Log -Message "Added dock drivers for download" -type 1 -LogFile $LogFile
+    Get-Log -Message "Added dock drivers for download" -type 1 -LogFile $LogFile
 }
 else{
-        Log -Message "Not enabled to download dock in ConfigFile" -type 2 -LogFile $LogFile
+        Get-Log -Message "Not enabled to download dock in ConfigFile" -type 2 -LogFile $LogFile
 }
 
 # Check if Category2 is enabled in the config.
 if ($XMLCategory2 -eq "True") {
     $Category2 = "driver"
-    Log -Message "Added drivers for download" -type 1 -LogFile $LogFile
+    Get-Log -Message "Added drivers for download" -type 1 -LogFile $LogFile
 }
 else {
-        Log -Message "Not Enabled to download drivers in ConfigFile" -type 2 -LogFile $LogFile
+        Get-Log -Message "Not Enabled to download drivers in ConfigFile" -type 2 -LogFile $LogFile
 }
 
 # Check if Category3 is enabled in the config.
 if ($XMLCategory3 -eq "True") {
     $Category3 = "firmware"
-    Log -Message "Added firmware for download" -type 1 -LogFile $LogFile
+    Get-Log -Message "Added firmware for download" -type 1 -LogFile $LogFile
 }
 else {
-        Log -Message "Not Enabled to download firmware in ConfigFile" -type 1 -LogFile $LogFile
+        Get-Log -Message "Not Enabled to download firmware in ConfigFile" -type 1 -LogFile $LogFile
 }
 
 # Check if Category4 is enabled in the config.
 if ($XMLCategory4 -eq "True") {
     $Category4 = "driverpack"
-    Log -Message "Added driverpacks for download" -type 1 -LogFile $LogFile
+    Get-Log -Message "Added driverpacks for download" -type 1 -LogFile $LogFile
 
 }
 else {
-        Log -Message "Not Enabled to download Driverpack in ConfigFile" -type 1 -LogFile $LogFile
+        Get-Log -Message "Not Enabled to download Driverpack in ConfigFile" -type 1 -LogFile $LogFile
 }
 # Check if Email notificaiton is enabled in the config.
 if ($XMLEnableSMTP.Enabled -eq "True") {
     $SMTP = $($XMLEnableSMTP.SMTP)
     $EMAIL = $($XMLEnableSMTP.Adress)
-    Log -Message "Added SMTP: $SMTP and EMAIL: $EMAIL" -type 1 -LogFile $LogFile
+    Get-Log -Message "Added SMTP: $SMTP and EMAIL: $EMAIL" -type 1 -LogFile $LogFile
 } 
 else {
-        Log -Message "Email notification is not enabled in the Config" -type 1 -LogFile $LogFile
+        Get-Log -Message "Email notification is not enabled in the Config" -type 1 -LogFile $LogFile
 }
 
 #Importing supported computer models CSV file
 if ($SupportedModelsCSV -match ".csv") {
 				$ModelsToImport = Import-Csv -Path $SupportedModelsCSV
-				Log -Message "Info: $($ModelsToImport.Model.Count) models found" -Type 1 -LogFile $LogFile
+				Get-Log -Message "Info: $($ModelsToImport.Model.Count) models found" -Type 1 -LogFile $LogFile
                 Write-host "Info: $($ModelsToImport.Model.Count) models found"
 }
 
@@ -237,7 +238,7 @@ $HPModelsTable = foreach ($Model in $ModelsToImport) {
     @(
     @{ ProdCode = "$($Model.ProductCode)"; Model = "$($Model.Model)"; OSVER = $Model.WindowsVersion }
     )
-    Log -Message "Added $($Model.ProductCode) $($Model.Model) $($Model.WindowsVersion) to download list" -type 1 -LogFile $LogFile
+    Get-Log -Message "Added $($Model.ProductCode) $($Model.Model) $($Model.WindowsVersion) to download list" -type 1 -LogFile $LogFile
     Write-host "Info: Added $($Model.ProductCode) $($Model.Model) $($Model.WindowsVersion) to download list" 
 }
 
@@ -387,14 +388,30 @@ foreach ($Model in $HPModelsTable) {
         $RobocopyArg = '"'+$RobocopySource+'"'+' "'+$RobocopyDest+'"'+' /xc /xn /xo /fft /e /b /copyall'
         $RobocopyCmd = "robocopy.exe"
         Start-Process -FilePath $RobocopyCmd -ArgumentList $RobocopyArg -Wait
-    
+        
+        Write-Host "Checking if offline folder is created"
+        $OfflinePath = "$($RepositoryPath)\$OSVER\$($Model.Model) $($Model.ProdCode)\Repository\.repository\cache\offline"
+        if(!(Test-Path $OfflinePath)){
+            Write-Host "Folder not detected, running RepositoryConfiguration again in 20 seconds"
+            Log -Message "Folder not detected, running RepositoryConfiguration again in 20 seconds" -type 1 -LogFile $LogFile
+            Start-Sleep -Seconds 20
+            Invoke-RepositorySync
+            Start-Sleep -Seconds 15
+            Set-RepositoryConfiguration -Setting OfflineCacheMode -CacheValue Enable
+            Start-Sleep -Seconds 10
+            if(!(Test-Path $OfflinePath)){
+                Write-Host "Offlinefolder still not detected, please run script manually again and update Distribution points"
+                Log -Message "Offlinefolder still not detected, please run script manually again and update Distribution points" -type 1 -LogFile $LogFile
+
+            }
+
         } else {
 
             Write-Host "Info: No need to update HPIA, skipping this step."
             Log -Message "No need to update HPIA, skipping." -type 1 -LogFile $LogFile
 
         }
-
+    }
 
 #==========Stop Monitoring Changes===================
 
