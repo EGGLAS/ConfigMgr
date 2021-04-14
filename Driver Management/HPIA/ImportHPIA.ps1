@@ -1,12 +1,13 @@
-<# Author: Daniel Gråhns, Nicklas Eriksson
+<# Author: Daniel GrÃ¥hns, Nicklas Eriksson
  Date: 2021-02-11
  Purpose: Download HP Drivers to repository and use with Webservice and TaskSequence
 
  Version: 1.0
  Changelog: 1.0 - 2021-02-11 - Nicklas Eriksson -  Script Edited and fixed Daniels crappy hack and slash code :)
             1.1 - 2021-02-18 - Nicklas Eriksson - Added HPIA to download to HPIA Download instead to Root Directory, Added BIOSPwd should be copy to HPIA so BIOS upgrades can be run during OSD. 
-            1.2 - 2021-04-13 - Nicklas Eriksson - Bug fixed when if offline folder does not exists. Thanks to Andreas Molin who found this and corrected it.  
-            TO-Do
+            1.2 - 2021-04-13 - Nicklas Eriksson - Bug fixed when offline folder does not exists. Thanks to Andreas Molin who found this and corrected it.  
+            
+TO-Do
  - Can we create an if around this Monitor changes if the path exists go into there if not skip since it throws an error?
  Credit, inspiration and copy/paste code from: garytown.com, dotnet-helpers.com, ConfigMgr.com, www.imab.dk, Ryan Engstrom
 #>
@@ -93,7 +94,7 @@ Type: 1 = Normal, 2 = Warning (yellow), 3 = Error (red)
 Get-Log  -Message  "<--------------------------------------------------------------------------------------------------------------------->"  -type 2 -LogFile $LogFile
 Write-host "Info: Successfully loaded ConfigFile from $Config"
 Get-Log -Message "Successfully loaded ConfigFile from $Config" -LogFile $Logfile
-Get-LOg -Message "Script was started with version: $($ScriptVersion)" -type 1 -LogFile $LogFile 
+Get-Log -Message "Script was started with version: $($ScriptVersion)" -type 1 -LogFile $LogFile 
 
 # CHeck if HPCML should autoupdate from Powershell gallery if's specified in the config.
 if ($InstallHPCML -eq "True")
@@ -284,134 +285,138 @@ foreach ($Model in $HPModelsTable) {
 #=====================================================================================================================
 
 
-    Log -Message "----------------------------------------------------------------------------" -LogFile $LogFile
-    Log -Message "Checking if repository for model $($Model.Model) aka $($Model.ProdCode) exists" -LogFile $LogFile
+    Get-Log -Message "----------------------------------------------------------------------------" -LogFile $LogFile
+    Get-Log -Message "Checking if repository for model $($Model.Model) aka $($Model.ProdCode) exists" -LogFile $LogFile
     write-host "Info: Checking if repository for model $($Model.Model) aka $($Model.ProdCode) exists"
-    if (Test-Path "$($RepositoryPath)\$OSVER\$($Model.Model) $($Model.ProdCode)\Repository") { Log -Message "Repository for model $($Model.Model) aka $($Model.ProdCode) already exists" -LogFile $LogFile }
+    if (Test-Path "$($RepositoryPath)\$OSVER\$($Model.Model) $($Model.ProdCode)\Repository") { Get-Log -Message "Repository for model $($Model.Model) aka $($Model.ProdCode) already exists" -LogFile $LogFile }
     if (-not (Test-Path "$($RepositoryPath)\$OSVER\$($Model.Model) $($Model.ProdCode)\Repository")) {
-        Log -Message "Repository for $($Model.Model) $($Model.ProdCode) does not exist, creating now" -LogFile $LogFile
+        Get-Log -Message "Repository for $($Model.Model) $($Model.ProdCode) does not exist, creating now" -LogFile $LogFile
         Write-host "Info: Repository for $($Model.Model) $($Model.ProdCode) does not exist, creating now"
         New-Item -ItemType Directory -Path "$($RepositoryPath)\$OSVER\$($Model.Model) $($Model.ProdCode)\Repository"
         if (Test-Path "$($RepositoryPath)\$OSVER\$($Model.Model) $($Model.ProdCode)\Repository") {
-            Log -Message "$($Model.Model) $($Model.ProdCode) HPIA folder and repository subfolder successfully created" -LogFile $LogFile
+            Get-Log -Message "$($Model.Model) $($Model.ProdCode) HPIA folder and repository subfolder successfully created" -LogFile $LogFile
             Write-host "Info: $($Model.Model) $($Model.ProdCode) HPIA folder and repository subfolder successfully created" -ForegroundColor Green
             }
         else {
-            Log -Message "Failed to create repository subfolder!" -LogFile $LogFile -Type 3
+            Get-Log -Message "Failed to create repository subfolder!" -LogFile $LogFile -Type 3
             Write-host "Info: Failed to create repository subfolder!" -ForegroundColor Red
             Exit
         }
     }
     if (-not (Test-Path "$($RepositoryPath)\$OSVER\$($Model.Model) $($Model.ProdCode)\Repository\.repository")) {
-        Log -Message "Repository not initialized, initializing now" -LogFile $LogFile
+        Get-Log -Message "Repository not initialized, initializing now" -LogFile $LogFile
         Write-host "Info: Repository not initialized, initializing now"
         Set-Location -Path "$($RepositoryPath)\$OSVER\$($Model.Model) $($Model.ProdCode)\Repository"
         Initialize-Repository
         if (Test-Path "$($RepositoryPath)\$OSVER\$($Model.Model) $($Model.ProdCode)\Repository\.repository") {
             Write-host "Info: $($Model.Model) $($Model.ProdCode) repository successfully initialized"
-            Log -Message "$($Model.Model) $($Model.ProdCode) repository successfully initialized" -LogFile $LogFile
+            Get-Log -Message "$($Model.Model) $($Model.ProdCode) repository successfully initialized" -LogFile $LogFile
         }
         else {
-            Log -Message "Failed to initialize repository for $($Model.Model) $($Model.ProdCode)" -LogFile $LogFile -Type 3
+            Get-Log -Message "Failed to initialize repository for $($Model.Model) $($Model.ProdCode)" -LogFile $LogFile -Type 3
             Write-host "Info: Failed to initialize repository for $($Model.Model) $($Model.ProdCode)" -ForegroundColor Red
             Exit
         }
     }    
     
-    Log -Message "Set location to $($Model.Model) $($Model.ProdCode) repository" -LogFile $LogFile
+    Get-Log -Message "Set location to $($Model.Model) $($Model.ProdCode) repository" -LogFile $LogFile
     Set-Location -Path "$($RepositoryPath)\$OSVER\$($Model.Model) $($Model.ProdCode)\Repository"
     
     if ($XMLEnableSMTP.Enabled -eq "True") {
         Set-RepositoryNotificationConfiguration $SMTP
         Add-RepositorySyncFailureRecipient -to $EMAIL
-        Log -Message "Configured notification for $($Model.Model) $($Model.ProdCode) with SMTP: $SMTP and Email: $EMAIL" -LogFile $LogFile
+        Get-Log -Message "Configured notification for $($Model.Model) $($Model.ProdCode) with SMTP: $SMTP and Email: $EMAIL" -LogFile $LogFile
     }  
     
-    Log -Message "Remove any existing repository filter for $($Model.Model) repository" -LogFile $LogFile
+    Get-Log -Message "Remove any existing repository filter for $($Model.Model) repository" -LogFile $LogFile
     Remove-RepositoryFilter -platform $($Model.ProdCode) -yes
     
-    Log -Message "Applying repository filter for $($Model.Model) repository" -LogFile $LogFile
+    Get-Log -Message "Applying repository filter for $($Model.Model) repository" -LogFile $LogFile
     if ($XMLCategory1 -eq "True") {
            Add-RepositoryFilter -platform $($Model.ProdCode) -os $OS -osver $($Model.OSVER) -category $Category1
-           Log -Message "Applying repository filter to $($Model.Model) repository to download: $Category1" -type 1 -LogFile $LogFile
+           Get-Log -Message "Applying repository filter to $($Model.Model) repository to download: $Category1" -type 1 -LogFile $LogFile
 
     }
     else {
-        Log -Message "Not applying repository filter to download $($Model.Model) for: dock" -type 1 -LogFile $LogFile
+        Get-Log -Message "Not applying repository filter to download $($Model.Model) for: dock" -type 1 -LogFile $LogFile
 
     }
     if ($XMLCategory2 -eq "True") {
         Add-RepositoryFilter -platform $($Model.ProdCode) -os $OS -osver $($Model.OSVER) -category $Category2
-        Log -Message "Applying repository filter to $($Model.Model) repository to download: $Category2" -type 1 -LogFile $LogFile
+        Get-Log -Message "Applying repository filter to $($Model.Model) repository to download: $Category2" -type 1 -LogFile $LogFile
 
     }
     else {
-        Log -Message "Not applying repository filter to download $($Model.Model) for: Driver" -type 1 -LogFile $LogFile
+        Get-Log -Message "Not applying repository filter to download $($Model.Model) for: Driver" -type 1 -LogFile $LogFile
 
     }
     if ($XMLCategory3 -eq "True") {
         Add-RepositoryFilter -platform $($Model.ProdCode) -os $OS -osver $($Model.OSVER) -category $Category3
-        Log -Message "Applying repository filter to $($Model.Model) repository to download: $Category3" -type 1 -LogFile $LogFile
+        Get-Log -Message "Applying repository filter to $($Model.Model) repository to download: $Category3" -type 1 -LogFile $LogFile
     }
     else {
-        Log -Message "Not applying repository filter to download $($Model.Model) for: Firmware" -type 2 -LogFile $LogFile
+        Get-Log -Message "Not applying repository filter to download $($Model.Model) for: Firmware" -type 2 -LogFile $LogFile
     }
     if ($XMLCategory4 -eq "True") {
         Add-RepositoryFilter -platform $($Model.ProdCode) -os $OS -osver $($Model.OSVER) -category $Category4
-        Log -Message "Applying repository filter to $($Model.Model) repository to download: $Category4" -type 2 -LogFile $LogFile
+        Get-Log -Message "Applying repository filter to $($Model.Model) repository to download: $Category4" -type 2 -LogFile $LogFile
 
     }
     else {
-        Log -Message "Not applying repository filter to download $($Model.Model) for: DriverPack" -type 1 -LogFile $LogFile
+        Get-Log -Message "Not applying repository filter to download $($Model.Model) for: DriverPack" -type 1 -LogFile $LogFile
     }
 
-    Log -Message "Invoking repository sync for $($Model.Model) $($Model.ProdCode) repository $os, $($Model.OSVER), $Category1 and $Category2 and $Category3 and $Category4" -LogFile $LogFile
+    Get-Log -Message "Invoking repository sync for $($Model.Model) $($Model.ProdCode) repository $os, $($Model.OSVER), $Category1 and $Category2 and $Category3 and $Category4" -LogFile $LogFile
     Write-host "Info: Invoking repository sync for $($Model.Model) $($Model.ProdCode) repository $os, $($Model.OSVER), $Category1 and $Category2 and $Category3 and $Category4"
     Invoke-RepositorySync
     Set-RepositoryConfiguration -Setting OfflineCacheMode -CacheValue Enable
     Start-Sleep -s 15
     Set-RepositoryConfiguration -Setting OfflineCacheMode -CacheValue Enable
 
-    Log -Message "Invoking repository cleanup for $($Model.Model) $($Model.ProdCode) repository for $Category1 and $Category2 and $Category3 and $Category4 categories" -LogFile $LogFile
+    Get-Log -Message "Invoking repository cleanup for $($Model.Model) $($Model.ProdCode) repository for $Category1 and $Category2 and $Category3 and $Category4 categories" -LogFile $LogFile
     Write-host "Info: Invoking repository cleanup for $($Model.Model) $($Model.ProdCode) repository for $Category1 and $Category2 and $Category3 and $Category4 categories"
     Invoke-RepositoryCleanup
     Set-RepositoryConfiguration -Setting OfflineCacheMode -CacheValue Enable
-    Log -Message "Confirm HPIA files are up to date for $($Model.Model) $($Model.ProdCode)" -LogFile $LogFile 
+    Get-Log -Message "Confirm HPIA files are up to date for $($Model.Model) $($Model.ProdCode)" -LogFile $LogFile 
     Write-host "Info: Confirm HPIA files are up to date for $($Model.Model) $($Model.ProdCode)" 
 
+    $HPIARepoPath = "$($RepositoryPath)\$OSVER\$($Model.Model) $($Model.ProdCode)\HPImageAssistant.exe"
+    $HPIAExist = Get-Item $HPIARepoPath
+    if(!$HPIAExist){
+    $HPIANotCopied = "True"
+    }
 
-    if ($HPIAVersionUpdated -eq "True") {
+    if (($HPIAVersionUpdated -eq "True") -or ($HpiaNotCopied -eq "True")) {  
         Write-Host "Info: Running HPIA Update"
-        Log -Message "Running HPIA Update" -type 1 -LogFile $LogFile
+        Get-Log -Message "Running HPIA Update" -type 1 -LogFile $LogFile
         $RobocopySource = "$($XMLInstallHPIA.Value)\HPIA Base"
         $RobocopyDest = "$($RepositoryPath)\$OSVER\$($Model.Model) $($Model.ProdCode)"
         $RobocopyArg = '"'+$RobocopySource+'"'+' "'+$RobocopyDest+'"'+' /xc /xn /xo /fft /e /b /copyall'
         $RobocopyCmd = "robocopy.exe"
         Start-Process -FilePath $RobocopyCmd -ArgumentList $RobocopyArg -Wait
-        
-        Write-Host "Checking if offline folder is created"
-        $OfflinePath = "$($RepositoryPath)\$OSVER\$($Model.Model) $($Model.ProdCode)\Repository\.repository\cache\offline"
-        if(!(Test-Path $OfflinePath)){
-            Write-Host "Folder not detected, running RepositoryConfiguration again in 20 seconds"
-            Log -Message "Folder not detected, running RepositoryConfiguration again in 20 seconds" -type 1 -LogFile $LogFile
-            Start-Sleep -Seconds 20
-            Invoke-RepositorySync
-            Start-Sleep -Seconds 15
-            Set-RepositoryConfiguration -Setting OfflineCacheMode -CacheValue Enable
-            Start-Sleep -Seconds 10
-            if(!(Test-Path $OfflinePath)){
-                Write-Host "Offlinefolder still not detected, please run script manually again and update Distribution points"
-                Log -Message "Offlinefolder still not detected, please run script manually again and update Distribution points" -type 1 -LogFile $LogFile
-
-            }
 
         } else {
 
             Write-Host "Info: No need to update HPIA, skipping this step."
-            Log -Message "No need to update HPIA, skipping." -type 1 -LogFile $LogFile
-
+            Get-Log -Message "No need to update HPIA, skipping." -type 1 -LogFile $LogFile
         }
+    
     }
+
+    Write-Host "Checking if offline folder is created"
+    $OfflinePath = "$($RepositoryPath)\$OSVER\$($Model.Model) $($Model.ProdCode)\Repository\.repository\cache\offline"
+    if(!(Test-Path $OfflinePath)){
+        Write-Host "Folder not detected, running RepositoryConfiguration again in 20 seconds"
+        Get-Log -Message "Folder not detected, running RepositoryConfiguration again in 20 seconds" -type 1 -LogFile $LogFile
+        Start-Sleep -Seconds 20
+        Invoke-RepositorySync
+        Start-Sleep -Seconds 15
+        Set-RepositoryConfiguration -Setting OfflineCacheMode -CacheValue Enable
+        Start-Sleep -Seconds 10
+        if(!(Test-Path $OfflinePath)){
+            Write-Host "Offlinefolder still not detected, please run script manually again and update Distribution points"
+            Get-Log -Message "Offlinefolder still not detected, please run script manually again and update Distribution points" -type 1 -LogFile $LogFile
+        }
 
 #==========Stop Monitoring Changes===================
 
@@ -433,8 +438,8 @@ foreach ($Model in $HPModelsTable) {
     $PackageExist = Get-CMPackage -Fast -Name $PackageName
     If ([string]::IsNullOrWhiteSpace($PackageExist)){
         #Write-Host "Does not Exist"
-        Log -Message "$PackageName does not exists in ConfigMgr" -type 2 -LogFile $LogFile
-        Log -Message "Creating $PackageName in ConfigMgr" -type 2 -LogFile $LogFile
+        Get-Log -Message "$PackageName does not exists in ConfigMgr" -type 2 -LogFile $LogFile
+        Get-Log -Message "Creating $PackageName in ConfigMgr" -type 2 -LogFile $LogFile
         Write-host "Info: $PackageName does not exists in ConfigMgr"
         Write-host "Info: Creating $PackageName in ConfigMgr"
         New-CMPackage -Name $PackageName -Description $PackageDescription -Manufacturer $PackageManufacturer -Version $PackageVersion -Path $SourcesLocation
@@ -446,28 +451,28 @@ foreach ($Model in $HPModelsTable) {
 
         Set-Location -Path "$($InstallPath)"
         Write-host "Info: $PackageName is created in ConfigMgr"
-        Log -Message "$PackageName is created in ConfigMgr" -LogFile $LogFile
+        Get-Log -Message "$PackageName is created in ConfigMgr" -LogFile $LogFile
     }
     Else {
         #Write-Host "Package Already Exist"
         #Write-Host "Updatepackage: $GLOBAL:UpdatePackage"
         If ($GLOBAL:UpdatePackage -eq $True){
             Write-Host "Info: Changes was made updating ConfigMgrPkg: $PackageName" -ForegroundColor Green
-            Log -Message "Changes made Updating ConfigMgrPkg: $PackageName on DistributionPoint" -type 2 -LogFile $LogFile
+            Get-Log -Message "Changes made Updating ConfigMgrPkg: $PackageName on DistributionPoint" -type 2 -LogFile $LogFile
             Update-CMDistributionPoint -PackageName "$PackageName"
         }
         Else {
             Write-Host "Info: No Changes was Made, not updating ConfigMgrPkg: $PackageName on DistributionPoint" -ForegroundColor Green
-            Log -Message "No Changes was Made, not updating ConfigMgrPkg: $PackageName on DistributionPoint" -type 2 -LogFile $LogFile
+            Get-Log -Message "No Changes was Made, not updating ConfigMgrPkg: $PackageName on DistributionPoint" -type 2 -LogFile $LogFile
 
         }
             Set-Location -Path $($InstallPath)
             Write-host "Info: $($Model.Model) is done, contiune with next model in the list."  -ForegroundColor Green
-            Log -Message "$($Model.Model) is done, contiune with next model in the list." -type 1 -LogFile $LogFile
+            Get-Log -Message "$($Model.Model) is done, contiune with next model in the list." -type 1 -LogFile $LogFile
     }
     
 }
 Set-Location -Path "$($InstallPath)"
 Write-host "Info: Repository Update Complete" -ForegroundColor Green
-Log -Message "Repository Update Complete" -LogFile $LogFile
-Log -Message "----------------------------------------------------------------------------" -LogFile $LogFile
+Get-Log -Message "Repository Update Complete" -LogFile $LogFile
+Get-Log -Message "----------------------------------------------------------------------------" -LogFile $LogFile
