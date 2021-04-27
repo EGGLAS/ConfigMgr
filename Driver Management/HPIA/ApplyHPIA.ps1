@@ -11,7 +11,7 @@
 
 # Should be converted to ConfigMgr Adminservice. 
 $URI = "https://lksrvsccm03.res.ludvika.intra/ConfigMgrWebService/ConfigMgr.asmx"
-$SecretKey = "686c6eac-7e15-4ae6-bea3-2c4a31a1d44f"
+$SecretKey = ""
 
 
 $LogFile = "C:\Windows\Temp"
