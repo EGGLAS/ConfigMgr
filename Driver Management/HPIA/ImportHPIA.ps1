@@ -8,6 +8,7 @@
             1.2 - 2021-04-14 - Daniel Gråhns - Added check if Offline folder is created
             1.3 - 2021-04-27 - Nicklas Eriksson - Completed the function to so the script also downloaded BIOS updates during sync.
  TO-Do
+ - Add some sort of clean-up do delete old packages that are not needed anymore. 
  - Maybe add support for Software.
  - Can we create an if around this Monitor changes if the path exists go into there if not skip since it throws an error?
  Credit, inspiration and copy/paste code from: garytown.com, dotnet-helpers.com, ConfigMgr.com, www.imab.dk, Ryan Engstrom
