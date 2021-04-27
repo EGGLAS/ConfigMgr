@@ -1,11 +1,14 @@
-<# Author: Daniel Gr�hns, Nicklas Eriksson
+<# Author: Daniel Gråhns, Nicklas Eriksson
  Date: 2021-02-11
  Purpose: Download HP Drivers to repository and use with Webservice and TaskSequence
 
- Version: 1.0
+ Version: 1.3
  Changelog: 1.0 - 2021-02-11 - Nicklas Eriksson -  Script Edited and fixed Daniels crappy hack and slash code :)
             1.1 - 2021-02-18 - Nicklas Eriksson - Added HPIA to download to HPIA Download instead to Root Directory, Added BIOSPwd should be copy to HPIA so BIOS upgrades can be run during OSD. 
+            1.2 - 2021-04-14 - Daniel Gråhns - Added check if Offline folder is created
+            1.3 - 2021-04-27 - Nicklas Eriksson - Completed the function to so the script also downloaded BIOS updates during sync.
  TO-Do
+ - Maybe add support for Software.
  - Can we create an if around this Monitor changes if the path exists go into there if not skip since it throws an error?
  Credit, inspiration and copy/paste code from: garytown.com, dotnet-helpers.com, ConfigMgr.com, www.imab.dk, Ryan Engstrom
 #>
@@ -16,45 +19,8 @@ param(
     [string]$Config
 )
 
-$ScriptVersion = "1.1"
+$ScriptVersion = "1.3"
 #$Config = "E:\Scripts\ImportHPIA\Config.xml" #(.\ImportHPIA.ps1 -config .\config.xml)
-
-if (Test-Path -Path $Config) {
-        try { 
-            $Xml = [xml](Get-Content -Path $Config -Encoding UTF8)
-            Log -Message "Successfully loaded $Config" -LogFile $Logfile
-        }
-        catch {
-            $ErrorMessage = $_.Exception.Message
-            Log -Message "Error, could not read $Config" -Level Error -LogFile $Logfile
-            Log -Message "Error message: $ErrorMessage" -Level Error -LogFile $Logfile
-            Exit 1
-        }
-
- }
-
-# Getting information from Config File
-$InstallPath = $Xml.Configuration.Install | Where-Object {$_.Name -like 'InstallPath'} | Select-Object -ExpandProperty "Value"
-$XMLInstallHPIA = $Xml.Configuration.Install | Where-Object {$_.Name -like 'InstallHPIA'} | Select-Object 'Enabled','Value'
-$SiteCode = $Xml.Configuration.Install | Where-Object {$_.Name -like 'SiteCode'} | Select-Object -ExpandProperty 'Value'
-$CMFolderPath = $Xml.Configuration.Install | Where-Object {$_.Name -like 'CMFolderPath'} | Select-Object -ExpandProperty 'Value'
-$ConfigMgrModule = $Xml.Configuration.Install | Where-Object {$_.Name -like 'ConfigMgrModule'} | Select-Object -ExpandProperty 'Value'
-$InstallHPCML = $Xml.Configuration.Install | Where-Object {$_.Name -like 'InstallHPCML'} | Select-Object -ExpandProperty 'Enabled'
-$RepositoryPath = $Xml.Configuration.Install | Where-Object {$_.Name -like 'RepositoryPath'} | Select-Object -ExpandProperty 'Value'
-$SupportedModelsCSV = $Xml.Configuration.Install | Where-Object {$_.Name -like 'SupportComputerModels'} | Select-Object -ExpandProperty 'Value'
-$XMLSSMONLY = $Xml.Configuration.Feature | Where-Object {$_.Name -like 'SSMOnly'} | Select-Object -ExpandProperty 'Enabled'
-$XMLCategory1 = $Xml.Configuration.Feature | Where-Object {$_.Name -like 'Category1'} | Select-Object -ExpandProperty 'Enabled'
-$XMLCategory2 = $Xml.Configuration.Feature | Where-Object {$_.Name -like 'Category2'} | Select-Object -ExpandProperty 'Enabled'
-$XMLCategory3 = $Xml.Configuration.Feature | Where-Object {$_.Name -like 'Category3'} | Select-Object -ExpandProperty 'Enabled'
-$XMLCategory4 = $Xml.Configuration.Feature | Where-Object {$_.Name -like 'Category4'} | Select-Object -ExpandProperty 'Enabled'
-$DPGroupName = $Xml.Configuration.Feature | Where-Object {$_.Name -like 'DPGroupName'} | Select-Object -ExpandProperty 'Value'
-$XMLEnableSMTP = $Xml.Configuration.Option | Where-Object {$_.Name -like 'EnableSMTP'} | Select-Object 'Enabled','SMTP',"Adress"
-#$XMLLogfile = $Xml.Configuration.Option | Where-Object {$_.Name -like 'Logfile'} | Select-Object -ExpandProperty 'Value'
-
-# Hardcoded variabels in the script.
-$LogFile = "$InstallPath\RepositoryUpdate.log" #Filename for the logfile.
-$OS = "Win10" #OS do not change this.
-
 
 function Log {
     Param (
@@ -82,6 +48,48 @@ Type: 1 = Normal, 2 = Warning (yellow), 3 = Error (red)
     $LogMessage = "<![LOG[$Message $ErrorMessage" + "]LOG]!><time=`"$Time`" date=`"$Date`" component=`"$Component`" context=`"`" type=`"$Type`" thread=`"`" file=`"`">"
     $LogMessage | Out-File -Append -Encoding UTF8 -FilePath $LogFile
 }
+
+if (Test-Path -Path $Config) {
+        try { 
+            $Xml = [xml](Get-Content -Path $Config -Encoding UTF8)
+            Log -Message "Successfully loaded $Config" -LogFile $Logfile
+        }
+        catch {
+            $ErrorMessage = $_.Exception.Message
+            Log -Message "Error, could not read $Config" -Level Error -LogFile $Logfile
+            Log -Message "Error message: $ErrorMessage" -Level Error -LogFile $Logfile
+            Exit 1
+        }
+
+ }
+ 
+
+# Getting information from Config File
+$InstallPath = $Xml.Configuration.Install | Where-Object {$_.Name -like 'InstallPath'} | Select-Object -ExpandProperty "Value"
+$XMLInstallHPIA = $Xml.Configuration.Install | Where-Object {$_.Name -like 'InstallHPIA'} | Select-Object 'Enabled','Value'
+$SiteCode = $Xml.Configuration.Install | Where-Object {$_.Name -like 'SiteCode'} | Select-Object -ExpandProperty 'Value'
+$CMFolderPath = $Xml.Configuration.Install | Where-Object {$_.Name -like 'CMFolderPath'} | Select-Object -ExpandProperty 'Value'
+$ConfigMgrModule = $Xml.Configuration.Install | Where-Object {$_.Name -like 'ConfigMgrModule'} | Select-Object -ExpandProperty 'Value'
+$InstallHPCML = $Xml.Configuration.Install | Where-Object {$_.Name -like 'InstallHPCML'} | Select-Object -ExpandProperty 'Enabled'
+$RepositoryPath = $Xml.Configuration.Install | Where-Object {$_.Name -like 'RepositoryPath'} | Select-Object -ExpandProperty 'Value'
+$SupportedModelsCSV = $Xml.Configuration.Install | Where-Object {$_.Name -like 'SupportComputerModels'} | Select-Object -ExpandProperty 'Value'
+$XMLSSMONLY = $Xml.Configuration.Feature | Where-Object {$_.Name -like 'SSMOnly'} | Select-Object -ExpandProperty 'Enabled'
+$XMLCategory1 = $Xml.Configuration.Feature | Where-Object {$_.Name -like 'Category1'} | Select-Object -ExpandProperty 'Enabled'
+$XMLCategory2 = $Xml.Configuration.Feature | Where-Object {$_.Name -like 'Category2'} | Select-Object -ExpandProperty 'Enabled'
+$XMLCategory3 = $Xml.Configuration.Feature | Where-Object {$_.Name -like 'Category3'} | Select-Object -ExpandProperty 'Enabled'
+$XMLCategory4 = $Xml.Configuration.Feature | Where-Object {$_.Name -like 'Category4'} | Select-Object -ExpandProperty 'Enabled'
+$XMLCategory5 = $Xml.Configuration.Feature | Where-Object {$_.Name -like 'Category5'} | Select-Object -ExpandProperty 'Enabled'
+$DPGroupName = $Xml.Configuration.Feature | Where-Object {$_.Name -like 'DPGroupName'} | Select-Object -ExpandProperty 'Value'
+$XMLEnableSMTP = $Xml.Configuration.Option | Where-Object {$_.Name -like 'EnableSMTP'} | Select-Object 'Enabled','SMTP',"Adress"
+#$XMLLogfile = $Xml.Configuration.Option | Where-Object {$_.Name -like 'Logfile'} | Select-Object -ExpandProperty 'Value'
+
+
+# Hardcoded variabels in the script.
+$LogFile = "$InstallPath\RepositoryUpdate.log" #Filename for the logfile.
+$OS = "Win10" #OS do not change this.
+
+
+
 
 Log  -Message  "<--------------------------------------------------------------------------------------------------------------------->"  -type 2 -LogFile $LogFile
 Write-host "Info: Successfully loaded ConfigFile from $Config"
@@ -210,6 +218,17 @@ if ($XMLCategory4 -eq "True") {
 else {
         Log -Message "Not Enabled to download Driverpack in ConfigFile" -type 1 -LogFile $LogFile
 }
+
+# Check if Category5 is enabled in the config.
+if ($XMLCategory5 -eq "True") {
+    $Category5 = "Bios"
+    Log -Message "Added BIOS for download" -type 1 -LogFile $LogFile
+
+}
+else {
+        Log -Message "Not Enabled to download BIOS in ConfigFile" -type 1 -LogFile $LogFile
+}
+
 # Check if Email notificaiton is enabled in the config.
 if ($XMLEnableSMTP.Enabled -eq "True") {
     $SMTP = $($XMLEnableSMTP.SMTP)
@@ -358,15 +377,24 @@ foreach ($Model in $HPModelsTable) {
         Log -Message "Not applying repository filter to download $($Model.Model) for: DriverPack" -type 1 -LogFile $LogFile
     }
 
+    if ($XMLCategory5 -eq "True") {
+        Add-RepositoryFilter -platform $($Model.ProdCode) -os $OS -osver $($Model.OSVER) -category $Category5
+        Log -Message "Applying repository filter to $($Model.Model) repository to download: $Category5" -type 2 -LogFile $LogFile
+
+    }
+    else {
+        Log -Message "Not applying repository filter to download $($Model.Model) for: BIOS" -type 1 -LogFile $LogFile
+    }
+
     Log -Message "Invoking repository sync for $($Model.Model) $($Model.ProdCode) repository $os, $($Model.OSVER), $Category1 and $Category2 and $Category3 and $Category4" -LogFile $LogFile
-    Write-host "Info: Invoking repository sync for $($Model.Model) $($Model.ProdCode) repository $os, $($Model.OSVER), $Category1 and $Category2 and $Category3 and $Category4"
+    Write-host "Info: Invoking repository sync for $($Model.Model) $($Model.ProdCode) repository $os, $($Model.OSVER), $Category1 and $Category2 and $Category3 and $Category4 and $Category5"
     Invoke-RepositorySync
     Set-RepositoryConfiguration -Setting OfflineCacheMode -CacheValue Enable
     Start-Sleep -s 15
     Set-RepositoryConfiguration -Setting OfflineCacheMode -CacheValue Enable
 
-    Log -Message "Invoking repository cleanup for $($Model.Model) $($Model.ProdCode) repository for $Category1 and $Category2 and $Category3 and $Category4 categories" -LogFile $LogFile
-    Write-host "Info: Invoking repository cleanup for $($Model.Model) $($Model.ProdCode) repository for $Category1 and $Category2 and $Category3 and $Category4 categories"
+    Log -Message "Invoking repository cleanup for $($Model.Model) $($Model.ProdCode) repository for $Category1 and $Category2 and $Category3 and $Category4 and $Category5 categories" -LogFile $LogFile
+    Write-host "Info: Invoking repository cleanup for $($Model.Model) $($Model.ProdCode) repository for $Category1 and $Category2 and $Category3 and $Category4 and $Category5 categories"
     Invoke-RepositoryCleanup
     Set-RepositoryConfiguration -Setting OfflineCacheMode -CacheValue Enable
     Log -Message "Confirm HPIA files are up to date for $($Model.Model) $($Model.ProdCode)" -LogFile $LogFile 
@@ -394,6 +422,22 @@ foreach ($Model in $HPModelsTable) {
             Log -Message "No need to update HPIA, skipping." -type 1 -LogFile $LogFile
 
         }
+
+        Write-Host "Checking if offline folder is created"
+        $OfflinePath = "$($RepositoryPath)\$OSVER\$($Model.Model) $($Model.ProdCode)\Repository\.repository\cache\offline"
+        if(!(Test-Path $OfflinePath)){
+            Write-Host "Folder not detected, running RepositoryConfiguration again in 20 seconds" -ForegroundColor Red
+            Log -Message "Folder not detected, running RepositoryConfiguration again in 20 seconds" -type 3 -LogFile $LogFile
+            Start-Sleep -Seconds 20
+            Invoke-RepositorySync
+            Start-Sleep -Seconds 15
+            Set-RepositoryConfiguration -Setting OfflineCacheMode -CacheValue Enable
+            Start-Sleep -Seconds 10
+          }
+        if(!(Test-Path $OfflinePath)){
+            Write-Host "Offlinefolder still not detected, please run script manually again and update Distribution points"
+            Log -Message "Folder not detected, running RepositoryConfiguration again in 20 seconds" -type 3 -LogFile $LogFile
+        } 
 
 
 #==========Stop Monitoring Changes===================
@@ -447,7 +491,8 @@ foreach ($Model in $HPModelsTable) {
             Set-Location -Path $($InstallPath)
             Write-host "Info: $($Model.Model) is done, contiune with next model in the list."  -ForegroundColor Green
             Log -Message "$($Model.Model) is done, contiune with next model in the list." -type 1 -LogFile $LogFile
-    }  
+    }
+    
 }
 Set-Location -Path "$($InstallPath)"
 Write-host "Info: Repository Update Complete" -ForegroundColor Green

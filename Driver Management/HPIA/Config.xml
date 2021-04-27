@@ -13,6 +13,7 @@
 	<Feature Name="Category2" Enabled="True" />	<!-- Enables Driver download for drivers -->
 	<Feature Name="Category3" Enabled="True" />	<!-- Enables Driver download for firmware -->
 	<Feature Name="Category4" Enabled="False" />	<!-- Enables Driver download for driverpack -->
+	<Feature Name="Category5" Enabled="True" />	<!-- Enables HPIA to download for BIOS -->
 	<Feature Name="DPGroupName" Value="test" />	<!-- Set DP GroupName -->
 	<Option Name="EnableSMTP" Enabled="False" SMTP="smtp.test.se" Adress="lab@lab.se" />	<!-- Specify SMTP and e-postadress -->
 </Configuration>
