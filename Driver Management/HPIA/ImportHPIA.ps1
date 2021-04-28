@@ -20,8 +20,6 @@ param(
     [string]$Config
 )
 
-$ScriptVersion = "1.3"
-#$Config = "E:\Scripts\ImportHPIA\Config.xml" #(.\ImportHPIA.ps1 -config .\config.xml)
 
 function Log {
     Param (
@@ -57,9 +55,8 @@ if (Test-Path -Path $Config) {
         }
         catch {
             $ErrorMessage = $_.Exception.Message
-            Log -Message "Error, could not read $Config" -Level Error -LogFile $Logfile
-            Log -Message "Error message: $ErrorMessage" -Level Error -LogFile $Logfile
-            Exit 1
+            Write-host "Error, could not read $Config" -ForegroundColor Red
+            Write-host  "Error message: $ErrorMessage" -ForegroundColor Red
         }
 
  }
@@ -84,13 +81,11 @@ $DPGroupName = $Xml.Configuration.Feature | Where-Object {$_.Name -like 'DPGroup
 $XMLEnableSMTP = $Xml.Configuration.Option | Where-Object {$_.Name -like 'EnableSMTP'} | Select-Object 'Enabled','SMTP',"Adress"
 #$XMLLogfile = $Xml.Configuration.Option | Where-Object {$_.Name -like 'Logfile'} | Select-Object -ExpandProperty 'Value'
 
-
 # Hardcoded variabels in the script.
-$LogFile = "$InstallPath\RepositoryUpdate.log" #Filename for the logfile.
 $OS = "Win10" #OS do not change this.
-
-
-
+$ScriptVersion = "1.3"
+$LogFile = "$InstallPath\RepositoryUpdate.log" #Filename for the logfile.
+#$Config = "E:\Scripts\ImportHPIA\Config.xml" #(.\ImportHPIA.ps1 -config .\config.xml)
 
 Log  -Message  "<--------------------------------------------------------------------------------------------------------------------->"  -type 2 -LogFile $LogFile
 Write-host "Info: Successfully loaded ConfigFile from $Config"
