@@ -1,6 +1,6 @@
-﻿<# Author: Nicklas Eriksson
+<# Author: Nicklas Eriksson
  Date: 2021-03-11
- Purpose: Download HP Drivers and apply HPIA drivers during OS Deployment.
+ Purpose: Download HP Drivers and apply HPIA drivers during OS Deployment or OS Upgrade.
 
  Version: 1.0
  Changelog: 1.0 - 2021-02-11 - Nicklas Eriksson -  Script was created. Purpose to use one script to download and install HPIA.
@@ -9,7 +9,10 @@
  - Fallback to latest support OS?
  - Clean-up install files that are creating under C:\HPIA
 
-ApplyHPIA.ps1 -OSVersion 20H2 -Siteserver "server.domain.local" -DownloadPath CCMCache -BIOSPwd "Password.bin"
+ApplyHPIA.ps1 -OSVersion 20H2 -Siteserver "server.domain.local" -DownloadPath CCMCache -BIOSPwd "Password.pwd"
+
+Big shoutout and credit to Maurice Dualy and Nikolaj Andersen for their outstanding work for creating Modern Driver Management for making this possible. 
+Some code are borrowed from their awesome solution for making this work.
 #>
 
 [CmdletBinding(DefaultParameterSetName = "CCMCahe")]
@@ -112,11 +115,8 @@ else {
 $EncryptedPassword = ConvertTo-SecureString -String $Password -AsPlainText -Force
 $Credential = New-Object -TypeName System.Management.Automation.PSCredential -ArgumentList @($UserName, $EncryptedPassword)
        
-
-# Call the AdminService, request Computer Name
-# Try / Catch logic borrowed from Invoke-CMApplyDriverPackage.ps1 developed by @NickolajA and @MoDaly_IT
-$Filter = "HPIA-$OSversion-HP ProBook 650 G4 8416"
-#$Filter = "HPIA-$OSversion-" + (Get-WmiObject -Class:Win32_ComputerSystem).Model + " " + (Get-WmiObject -Class:Win32_BaseBoard).Product
+#$Filter = "HPIA-$OSversion-HP ProBook 650 G4 8416"
+$Filter = "HPIA-$OSversion-" + (Get-WmiObject -Class:Win32_ComputerSystem).Model + " " + (Get-WmiObject -Class:Win32_BaseBoard).Product
 
 
 $FilterPackages = "/SMS_Package?`$filter=contains(Name,'$($Filter)')"
@@ -265,7 +265,7 @@ $TSEnvironment.Value("OSDDownloadDestinationPath") = [System.String]::Empty
         If ($HPIAProcess.ExitCode -eq 3010)
     {
         
-        Log -Message "nstall Reboot Required — SoftPaq installations are successful, and at least one requires a reboob" -Component "HPIA" -Type 1 -logfile $LogFile
+        Log -Message "nstall Reboot Required � SoftPaq installations are successful, and at least one requires a reboob" -Component "HPIA" -Type 1 -logfile $LogFile
 
     }
     elseif ($HPIAProcess.ExitCode -eq 256) 
