@@ -316,14 +316,14 @@ $TSEnvironment.Value("OSDDownloadDestinationPath") = [System.String]::Empty
 }
 catch 
 {
-    Log -Message "Failed to start the HPImageAssistant.exe: $($_.Exception.Message)" -Component "HPIA" -Log 3
+    Log -Message "Failed to start the HPImageAssistant.exe: $($_.Exception.Message)" -Component "HPIA" -type 3 -Logfile $Logfile
     Exit $($_.Exception.Message)
 }
 
   }
   else
   {
-      Log -Message "Script is running as Precache, skipping to install HPIA." -Type 3 -Component "HPIA" -Type 3 -logfile $LogFile
+      Log -Message "Script is running as Precache, skipping to install HPIA." -Type 2 -Component "HPIA" -logfile $LogFile
 
   }
 
