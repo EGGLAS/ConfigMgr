@@ -255,8 +255,9 @@ $TSEnvironment.Value("OSDDownloadDestinationPath") = [System.String]::Empty
      # Check for BIOS File.
        if ($BIOSPwd -eq "")
        {
-        LOg -Message "Check if BIOS file exists." -type 1 -Component "HPIA" -LogFile $LogFile  
-        $BIOSPwd = Get-childitem -Path C:\Temp\HPIA -Filter "*.pwd"      
+        Log -Message "Check if BIOS file exists." -type 1 -Component "HPIA" -LogFile $LogFile  
+        $BIOSPwd = Get-childitem -Path $ContentPath -Filter "*.pwd"
+                
        }
 
         # Start HPIA Update process 
