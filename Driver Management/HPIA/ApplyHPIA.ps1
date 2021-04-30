@@ -148,10 +148,19 @@ catch [System.Security.Authentication.AuthenticationException] {
 	}
 	catch [System.Exception] {
 		# Throw terminating error
+		log -Message "Failed to retrive driver package from ConfigMgr Adminservice for $($Filter)." -Type 3 -Component HPIA -LogFile $LogFile				
+		# Throw terminating error
+        $Errorcode = "Failed to retrive driver package from ConfigMgr Adminservice for $($Filter)."
+        [System.Windows.MessageBox]::Show("$Errorcode", 'Error','OK','Stop')
 	}
 }
 catch {
 	# Throw terminating error
+		log -Message "Failed to retrive driver package from ConfigMgr Adminservice for $($Filter)." -Type 3 -Component HPIA -LogFile $LogFile				
+		# Throw terminating error
+        $Errorcode = "Failed to retrive driver package from ConfigMgr Adminservice for $($Filter)."
+        [System.Windows.MessageBox]::Show("$Errorcode", 'Error','OK','Stop')
+
 }
 
 # Should have a check to see $HPIAPackage.PackageID contain something.
