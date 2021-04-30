@@ -5,14 +5,16 @@
  Version: 1.0
  Changelog: 1.0 - 2021-02-11 - Nicklas Eriksson -  Script was created. Purpose to use one script to download and install HPIA.
             1.1 - 2021-04-30 - Daniel Gråhns - added a "c" that was missing just because I wanted to be in the changelog ;P and some other stuff that was hillarious ("reboob"), popup added on error.
- TO-Do
+            1.2 - 2021-04-30 - Nicklas Eriksson & Daniel Gråhns -Added PreCache function.
+TO-Do
  - Fallback to latest support OS?
- - Clean-up install files that are creating under C:\HPIA
- - Setup for precache.
 
 ApplyHPIA.ps1 -Siteserver "server.domain.local" -OSVersion "20H2"  
 ApplyHPIA.ps1 -Siteserver "server.domain.local" -OSVersion "20H2" -DownloadPath "CCMCache" -BIOSPwd "Password.pwd"
 ApplyHPIA.ps1 -Siteserver "server.domain.local" -OSVersion "20H2" -Precache "PreCache"
+
+NOTES 
+ - Clean-up install files that are creating under C:\HPIA - Add Remove-Item -Path "C:\HPIA" in task sequence if you want to clean-up, seperate step. 
 
 Big shoutout and credit to Maurice Dualy and Nikolaj Andersen for their outstanding work for creating Modern Driver Management for making this possible. 
 Some code are borrowed from their awesome solution for making this work.
@@ -115,11 +117,11 @@ else {
 # Construct PSCredential object for authentication
 $EncryptedPassword = ConvertTo-SecureString -String $Password -AsPlainText -Force
 $Credential = New-Object -TypeName System.Management.Automation.PSCredential -ArgumentList @($AdminserviceUser, $EncryptedPassword)
-       
+
+
+# Variables for ConfigMgr Adminservice.        
 #$Filter = "HPIA-$OSVersion-HP ProBook 430 G6 8536"
 $Filter = "HPIA-$OSversion-" + (Get-WmiObject -Class:Win32_ComputerSystem).Model + " " + (Get-WmiObject -Class:Win32_BaseBoard).Product
-
-
 $FilterPackages = "/SMS_Package?`$filter=contains(Name,'$($Filter)')"
 $AdminServiceURL = "https://{0}/AdminService/wmi" -f $SiteServer
 $AdminServiceUri = $AdminServiceURL + $FilterPackages
