@@ -214,11 +214,12 @@ $ReturnCode = Invoke-Executable -FilePath (Join-Path -Path $env:windir -ChildPat
         write-host "Successfully downloaded package content with PackageID: $($HPIAPackage.PackageID)" -ForegroundColor green
 	}
 	else {
-		log -Message "Failed to download package content with PackageID '$($HPIAPackage.PackageID)'. Return code was: $($ReturnCode)" -Type 3 -Component HPIA -LogFile $LogFile
+		log -Message "Failed to download or driver package is missing in ConfigMgr: $($Filter)." -Type 3 -Component HPIA -LogFile $LogFile
 				
 		# Throw terminating error
-		$ErrorRecord = New-TerminatingErrorRecord -Message ([string]::Empty)
-		$PSCmdlet.ThrowTerminatingError($ErrorRecord)
+        $Errorcode = "Failed to download or driver package is missing in ConfigMgr: $($Filter)."
+        [System.Windows.MessageBox]::Show("$Errorcode", 'Error','OK','Stop')
+
 	}
 
 log -Message "Setting task sequence variable OSDDownloadDownloadPackages to a blank value" -Type 1 -Component HPIA -LogFile $LogFile
