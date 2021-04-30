@@ -120,8 +120,8 @@ $Credential = New-Object -TypeName System.Management.Automation.PSCredential -Ar
 
 
 # Variables for ConfigMgr Adminservice.        
-$Filter = "HPIA-$OSVersion-HP ProBook 430 G6 8536"
-#$Filter = "HPIA-$OSversion-" + (Get-WmiObject -Class:Win32_ComputerSystem).Model + " " + (Get-WmiObject -Class:Win32_BaseBoard).Product
+#$Filter = "HPIA-$OSVersion-HP ProBook 430 G6 8536"
+$Filter = "HPIA-$OSversion-" + (Get-WmiObject -Class:Win32_ComputerSystem).Model + " " + (Get-WmiObject -Class:Win32_BaseBoard).Product
 $FilterPackages = "/SMS_Package?`$filter=contains(Name,'$($Filter)')"
 $AdminServiceURL = "https://{0}/AdminService/wmi" -f $SiteServer
 $AdminServiceUri = $AdminServiceURL + $FilterPackages
