@@ -1,32 +1,38 @@
-<# Author: Nicklas Eriksson
+<# Author: Nicklas Eriksson & Daniel Gråhns
  Date: 2021-03-11
  Purpose: Download HP Drivers and apply HPIA drivers during OS Deployment or OS Upgrade.
 
  Version: 1.0
  Changelog: 1.0 - 2021-02-11 - Nicklas Eriksson -  Script was created. Purpose to use one script to download and install HPIA.
-
+            1.1 - 2021-04-30 - Daniel Gråhns - added a "c" that was missing just because I wanted to be in the changelog ;P and some other stuff that was hillarious ("reboob"), popup added on error.
  TO-Do
  - Fallback to latest support OS?
  - Clean-up install files that are creating under C:\HPIA
  - Setup for precache.
 
-ApplyHPIA.ps1 -OSVersion 20H2 -Siteserver "server.domain.local" -DownloadPath CCMCache -BIOSPwd "Password.pwd"
+ApplyHPIA.ps1 -Siteserver "server.domain.local" -OSVersion "20H2"  
+ApplyHPIA.ps1 -Siteserver "server.domain.local" -OSVersion "20H2"  -DownloadPath "CCMCache" -BIOSPwd "Password.pwd"
+
 
 Big shoutout and credit to Maurice Dualy and Nikolaj Andersen for their outstanding work for creating Modern Driver Management for making this possible. 
 Some code are borrowed from their awesome solution for making this work.
 #>
 
-[CmdletBinding(DefaultParameterSetName = "CCMCahe")]
+[CmdletBinding(DefaultParameterSetName = "CCMCache")]
 param(
     [Parameter(Mandatory=$True, HelpMessage='Url to ConfigMgr Adminservice')]
     [string]$SiteServer,
+    [Parameter(Mandatory=$True, HelpMessage='Speicify accountname for ConfigMgr Adminservice service account')]
+    [string]$AdminserviceUser,
+    [Parameter(Mandatory=$True, HelpMessage='Speicify password ConfigMgr Adminservice service account')]
+    [string]$AdminservicePassword,
     [Parameter(Mandatory=$True, HelpMessage='OS Version')]
     [string]$OSVersion,
-    [Parameter(Mandatory=$True, ParameterSetName = "CCMCache",HelpMessage='Specify Path to download to')]
+    [Parameter(Mandatory=$False, ParameterSetName = "CCMCache",HelpMessage='Specify Path to download to')]
     [string]$DownloadPath = "CCMCache",
     [parameter(Mandatory = $false, ParameterSetName = "PreCache", HelpMessage = "Specify a custom path for the PreCache directory, overriding the default CCMCache directory.")]
 	[ValidateNotNullOrEmpty()]
-	[string]$CustomPath,
+	[string]$PreCache,
     [parameter(Mandatory = $false, ParameterSetName = "BIOSPassword", HelpMessage = "Specify the name of BIOS password file.")]
 	[ValidateNotNullOrEmpty()]
 	[string]$BIOSPwd
@@ -75,11 +81,11 @@ $LogFile = $TSEnvironment.Value("_SMSTSLogPath") + "\ApplyHPIA.log"
 $Softpaq = "SOFTPAQ"
 $HPIALogFile = $TSEnvironment.Value("_SMSTSLogPath") + "\InstallHPIA.log"
 
-# Attempt to read TSEnvironment variable MDMUserName
-$UserName = $TSEnvironment.Value("MDMUserName")
-if (-not ([string]::IsNullOrEmpty($UserName))) {
+# Attempt to read TSEnvironment variable AdminserviceUser
+$AdminserviceUser = $TSEnvironment.Value("AdminserviceUser")
+if (-not ([string]::IsNullOrEmpty($AdminserviceUser))) {
                
-        Log -Message "Successfully read service account user name from TS environment variable 'MDMUserName': $($UserName)" -Type 1 -Component "HPIA" -LogFile $LogFile
+        Log -Message "Successfully read service account user name from TS environment variable 'MDMUserName': $($AdminserviceUser)" -Type 1 -Component "HPIA" -LogFile $LogFile
     }
 else {
         Log -Message "Required service account user name could not be determined from TS environment variable" -type 3 -Component "HPIA" -LogFile $LogFile
@@ -95,9 +101,9 @@ if ([string]::IsNullOrEmpty($Password)) {
 				}
 				default {
 					# Attempt to read TSEnvironment variable MDMPassword
-					$Password = $TSEnvironment.Value("MDMPassword")
+					$Password = $TSEnvironment.Value("$AdminservicePassword")
 					if (-not([string]::IsNullOrEmpty($Password))) {
-						Log -Message "Successfully read service account password from TS environment variable 'MDMPassword': ********" -Component "HPIA" -type 3 -LogFile $LogFile
+						Log -Message "Successfully read service account password from TS environment variable 'AdminservicePassword': ********" -Component "HPIA" -type 3 -LogFile $LogFile
 					}
 					else {
 						Log -message "Required service account password could not be determined from TS environment variable" -Component "HPIA" -type 3 -LogFile $LogFile
@@ -114,9 +120,9 @@ else {
         
 # Construct PSCredential object for authentication
 $EncryptedPassword = ConvertTo-SecureString -String $Password -AsPlainText -Force
-$Credential = New-Object -TypeName System.Management.Automation.PSCredential -ArgumentList @($UserName, $EncryptedPassword)
+$Credential = New-Object -TypeName System.Management.Automation.PSCredential -ArgumentList @($AdminserviceUser, $EncryptedPassword)
        
-#$Filter = "HPIA-$OSversion-HP ProBook 650 G4 8416"
+#$Filter = "HPIA-$OSVersion-HP ProBook 430 G6 8536"
 $Filter = "HPIA-$OSversion-" + (Get-WmiObject -Class:Win32_ComputerSystem).Model + " " + (Get-WmiObject -Class:Win32_BaseBoard).Product
 
 
@@ -133,7 +139,7 @@ catch [System.Security.Authentication.AuthenticationException] {
 
 					
 	# Attempt to ignore self-signed certificate binding for AdminService
-	# Convert encoded base64 string for ignore self-signed certificate validation functionality
+	# Convert encoded base64 string for ignore self-signed certificate validation functionality, certification is genereic and no need for change. 
 	$CertificationValidationCallbackEncoded = "DQAKACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAdQBzAGkAbgBnACAAUwB5AHMAdABlAG0AOwANAAoAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAB1AHMAaQBuAGcAIABTAHkAcwB0AGUAbQAuAE4AZQB0ADsADQAKACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAdQBzAGkAbgBnACAAUwB5AHMAdABlAG0ALgBOAGUAdAAuAFMAZQBjAHUAcgBpAHQAeQA7AA0ACgAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgAHUAcwBpAG4AZwAgAFMAeQBzAHQAZQBtAC4AUwBlAGMAdQByAGkAdAB5AC4AQwByAHkAcAB0AG8AZwByAGEAcABoAHkALgBYADUAMAA5AEMAZQByAHQAaQBmAGkAYwBhAHQAZQBzADsADQAKACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAcAB1AGIAbABpAGMAIABjAGwAYQBzAHMAIABTAGUAcgB2AGUAcgBDAGUAcgB0AGkAZgBpAGMAYQB0AGUAVgBhAGwAaQBkAGEAdABpAG8AbgBDAGEAbABsAGIAYQBjAGsADQAKACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAewANAAoAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgAHAAdQBiAGwAaQBjACAAcwB0AGEAdABpAGMAIAB2AG8AaQBkACAASQBnAG4AbwByAGUAKAApAA0ACgAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAewANAAoAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAaQBmACgAUwBlAHIAdgBpAGMAZQBQAG8AaQBuAHQATQBhAG4AYQBnAGUAcgAuAFMAZQByAHYAZQByAEMAZQByAHQAaQBmAGkAYwBhAHQAZQBWAGEAbABpAGQAYQB0AGkAbwBuAEMAYQBsAGwAYgBhAGMAawAgAD0APQBuAHUAbABsACkADQAKACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgAHsADQAKACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAUwBlAHIAdgBpAGMAZQBQAG8AaQBuAHQATQBhAG4AYQBnAGUAcgAuAFMAZQByAHYAZQByAEMAZQByAHQAaQBmAGkAYwBhAHQAZQBWAGEAbABpAGQAYQB0AGkAbwBuAEMAYQBsAGwAYgBhAGMAawAgACsAPQAgAA0ACgAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAZABlAGwAZQBnAGEAdABlAA0ACgAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAKAANAAoAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAATwBiAGoAZQBjAHQAIABvAGIAagAsACAADQAKACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgAFgANQAwADkAQwBlAHIAdABpAGYAaQBjAGEAdABlACAAYwBlAHIAdABpAGYAaQBjAGEAdABlACwAIAANAAoAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAWAA1ADAAOQBDAGgAYQBpAG4AIABjAGgAYQBpAG4ALAAgAA0ACgAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIABTAHMAbABQAG8AbABpAGMAeQBFAHIAcgBvAHIAcwAgAGUAcgByAG8AcgBzAA0ACgAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAKQANAAoAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgAHsADQAKACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgAHIAZQB0AHUAcgBuACAAdAByAHUAZQA7AA0ACgAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAfQA7AA0ACgAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAB9AA0ACgAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAfQANAAoAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAB9AA0ACgAgACAAIAAgACAAIAAgACAA"
 	$CertificationValidationCallback = [Text.Encoding]::Unicode.GetString([Convert]::FromBase64String($CertificationValidationCallbackEncoded))
 					
@@ -143,23 +149,15 @@ catch [System.Security.Authentication.AuthenticationException] {
 					
 	try {
 		# Call AdminService endpoint to retrieve package data
-        #$Filter = "HPIA-$OSversion-HP ProBook 650 G4 8416"
-        #$Filter = "HPIA-$OSversion-" + (Get-WmiObject -Class:Win32_ComputerSystem).Model + " " + (Get-WmiObject -Class:Win32_BaseBoard).Product
-
-
         $HPIAPackage = $AdminServiceResponse.value  | Select-Object Name,PackageID 
         
 	}
 	catch [System.Exception] {
 		# Throw terminating error
-		$ErrorRecord = New-TerminatingErrorRecord -Message ([string]::Empty)
-		$PSCmdlet.ThrowTerminatingError($ErrorRecord)
 	}
 }
 catch {
 	# Throw terminating error
-	$ErrorRecord = New-TerminatingErrorRecord -Message ([string]::Empty)
-	$PSCmdlet.ThrowTerminatingError($ErrorRecord)
 }
 
 # Should have a check to see $HPIAPackage.PackageID contain something.
@@ -171,9 +169,9 @@ $TSEnvironment.value("OSDDownloadDownloadPackages") = "$($HPIAPackage.PackageID)
 $TSEnvironment.value("OSDDownloadDestinationVariable") = "$($Softpaq)"
 $ContentPath = $TSEnvironment.Value("softpaq01") 
 Log -Message "Setting OSDDownloadDownloadPackages: $($DownloadPath)" -type 1 -LogFile $LogFile
-Log -Message "Setting OSDDownloadDownloadPackages: $($HPIAPackage.PackageID)" -type 1 -LogFile $LogFile
+Log -Message "Setting OSDDownloadContinueDownloadOnError: 1" -type 1 -LogFile $LogFile
 Log -Message "Setting OSDDownloadDownloadPackages: $($ContentPath)" -type 1 -LogFile $LogFile
-Log -Message "Setting OSDDownloadDownloadPackages: $($HPIAPackage.PackageID)" -type 1 -LogFile $LogFile
+Log -Message "Setting OSDDownloadDestinationVariable: $($Softpaq)" -type 1 -LogFile $LogFile
 
 function Invoke-Executable {
 		param(
@@ -244,6 +242,8 @@ $TSEnvironment.Value("OSDDownloadDestinationVariable") = [System.String]::Empty
 log -message "Setting task sequence variable OSDDownloadDestinationPath to a blank value" -Type 1 -Component HPIA -LogFile $LogFile
 $TSEnvironment.Value("OSDDownloadDestinationPath") = [System.String]::Empty
 
+ if ($PreCache -ne "Precache")
+ {
     try
     {
      # Check for BIOS File.
@@ -266,27 +266,35 @@ $TSEnvironment.Value("OSDDownloadDestinationPath") = [System.String]::Empty
         If ($HPIAProcess.ExitCode -eq 3010)
     {
         
-        Log -Message "nstall Reboot Required — SoftPaq installations are successful, and at least one requires a reboob" -Component "HPIA" -Type 1 -logfile $LogFile
+        Log -Message "Install Reboot Required — SoftPaq installations are successful, and at least one requires a reboobt" -Component "HPIA" -Type 1 -logfile $LogFile
 
     }
     elseif ($HPIAProcess.ExitCode -eq 256) 
     {
         Log -Message "The analysis returned no recommendation." -Component "HPIA" -Type 2 -logfile $LogFile
+        $Errorcode = "The analysis returned no recommendation.."
+        [System.Windows.MessageBox]::Show("$Errorcode", 'Error','OK','Stop')
         Exit 256
     }
     elseif ($HPIAProcess.ExitCode -eq 4096) 
     {
         Log -Message "This platform is not supported!" -Type 3 -Component "HPIA" -Type 3 -logfile $LogFile
+        $Errorcode = "This platform is not supported!"
+        [System.Windows.MessageBox]::Show("$Errorcode", 'Error','OK','Stop')
         exit 4096
     }
     elseif ($HPIAProcess.ExitCode -eq 16384) {
         
         Log -Message "No matching configuration found on HP.com" -Type 3 -Component "HPIA" -Type 3 -logfile $LogFile
-
+        $Errorcode = "No matching configuration found on HP.com"
+        [System.Windows.MessageBox]::Show("$Errorcode", 'Error','OK','Stop')
     }
     Else
     {
         Log -Message "Process exited with code $($Process.ExitCode). Expecting 0." -Component "HPIA" -Log 3
+        $Errorcode = "Process exited with code $($Process.ExitCode). Expecting 0."
+        [System.Windows.MessageBox]::Show("$Errorcode", 'Error','OK','Stop')
+
         Exit 
     }
 }
@@ -295,5 +303,12 @@ catch
     Log -Message "Failed to start the HPImageAssistant.exe: $($_.Exception.Message)" -Component "HPIA" -Log 3
     Exit $($_.Exception.Message)
 }
+
+  }
+  else
+  {
+      Log -Message "Script is running as Precache, skipping to install HPIA." -Type 3 -Component "HPIA" -Type 3 -logfile $LogFile
+
+  }
 
 Log -Message "HPIA script is now completed." -Type 3 -Component "HPIA" -Type 3 -logfile $LogFile
