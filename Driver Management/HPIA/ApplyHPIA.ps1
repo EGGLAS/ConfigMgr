@@ -183,7 +183,7 @@ function Invoke-Executable {
 			FilePath = $FilePath
 			NoNewWindow = $true
 			Passthru = $true
-			ErrorAction = "Stop"x
+			ErrorAction = "Stop"
 		}
 		
 		# Add ArgumentList param if present
