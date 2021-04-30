@@ -26,7 +26,7 @@ param(
     [string]$SiteServer,
     [Parameter(Mandatory=$True, HelpMessage='OS Version')]
     [string]$OSVersion,
-    [parameter(Mandatory = $True, HelpMessage = "Specify the name of BIOS password file.")]
+    [parameter(Mandatory=$False, HelpMessage = "Specify the name of BIOS password file.")]
 	[string]$BIOSPwd,
     [Parameter(Mandatory=$False,HelpMessage='Specify Path to download to')]
     [string]$DownloadPath = "CCMCache",
@@ -122,8 +122,8 @@ $Credential = New-Object -TypeName System.Management.Automation.PSCredential -Ar
 
 
 # Variables for ConfigMgr Adminservice.        
-$Filter = "HPIA-$OSVersion-HP ProBook 430 G5 8536"
-#$Filter = "HPIA-$OSversion-" + (Get-WmiObject -Class:Win32_ComputerSystem).Model + " " + (Get-WmiObject -Class:Win32_BaseBoard).Product
+#$Filter = "HPIA-$OSVersion-HP ProBook 430 G5 8536"
+$Filter = "HPIA-$OSversion-" + (Get-WmiObject -Class:Win32_ComputerSystem).Model + " " + (Get-WmiObject -Class:Win32_BaseBoard).Product
 $FilterPackages = "/SMS_Package?`$filter=contains(Name,'$($Filter)')"
 $AdminServiceURL = "https://{0}/AdminService/wmi" -f $SiteServer
 $AdminServiceUri = $AdminServiceURL + $FilterPackages
