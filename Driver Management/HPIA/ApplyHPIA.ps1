@@ -11,8 +11,8 @@
  - Setup for precache.
 
 ApplyHPIA.ps1 -Siteserver "server.domain.local" -OSVersion "20H2"  
-ApplyHPIA.ps1 -Siteserver "server.domain.local" -OSVersion "20H2"  -DownloadPath "CCMCache" -BIOSPwd "Password.pwd"
-
+ApplyHPIA.ps1 -Siteserver "server.domain.local" -OSVersion "20H2" -DownloadPath "CCMCache" -BIOSPwd "Password.pwd"
+ApplyHPIA.ps1 -Siteserver "server.domain.local" -OSVersion "20H2" -Precache "PreCache"
 
 Big shoutout and credit to Maurice Dualy and Nikolaj Andersen for their outstanding work for creating Modern Driver Management for making this possible. 
 Some code are borrowed from their awesome solution for making this work.
@@ -22,10 +22,6 @@ Some code are borrowed from their awesome solution for making this work.
 param(
     [Parameter(Mandatory=$True, HelpMessage='Url to ConfigMgr Adminservice')]
     [string]$SiteServer,
-    [Parameter(Mandatory=$True, HelpMessage='Speicify accountname for ConfigMgr Adminservice service account')]
-    [string]$AdminserviceUser,
-    [Parameter(Mandatory=$True, HelpMessage='Speicify password ConfigMgr Adminservice service account')]
-    [string]$AdminservicePassword,
     [Parameter(Mandatory=$True, HelpMessage='OS Version')]
     [string]$OSVersion,
     [Parameter(Mandatory=$False, ParameterSetName = "CCMCache",HelpMessage='Specify Path to download to')]
@@ -37,7 +33,6 @@ param(
 	[ValidateNotNullOrEmpty()]
 	[string]$BIOSPwd
 )
-
 
 
 function Log {
@@ -85,7 +80,7 @@ $HPIALogFile = $TSEnvironment.Value("_SMSTSLogPath") + "\InstallHPIA.log"
 $AdminserviceUser = $TSEnvironment.Value("AdminserviceUser")
 if (-not ([string]::IsNullOrEmpty($AdminserviceUser))) {
                
-        Log -Message "Successfully read service account user name from TS environment variable 'MDMUserName': $($AdminserviceUser)" -Type 1 -Component "HPIA" -LogFile $LogFile
+        Log -Message "Successfully read service account user name from TS environment variable 'Adminserviceuser': $($AdminserviceUser)" -Type 1 -Component "HPIA" -LogFile $LogFile
     }
 else {
         Log -Message "Required service account user name could not be determined from TS environment variable" -type 3 -Component "HPIA" -LogFile $LogFile
@@ -100,7 +95,7 @@ if ([string]::IsNullOrEmpty($Password)) {
 					Log -Message " - Required service account password could not be determined from parameter input" -Component "HPIA" -type 3 -LogFile $LogFile
 				}
 				default {
-					# Attempt to read TSEnvironment variable MDMPassword
+					# Attempt to read TSEnvironment variable AdminservicePassword
 					$Password = $TSEnvironment.Value("$AdminservicePassword")
 					if (-not([string]::IsNullOrEmpty($Password))) {
 						Log -Message "Successfully read service account password from TS environment variable 'AdminservicePassword': ********" -Component "HPIA" -type 3 -LogFile $LogFile
@@ -116,7 +111,6 @@ if ([string]::IsNullOrEmpty($Password)) {
 else {
 	Log -message "Successfully read service account password from parameter input: ********" -Component "HPIA" -type 1 -LogFile $LogFile
 }
-
         
 # Construct PSCredential object for authentication
 $EncryptedPassword = ConvertTo-SecureString -String $Password -AsPlainText -Force
@@ -189,7 +183,7 @@ function Invoke-Executable {
 			FilePath = $FilePath
 			NoNewWindow = $true
 			Passthru = $true
-			ErrorAction = "Stop"
+			ErrorAction = "Stop"x
 		}
 		
 		# Add ArgumentList param if present
