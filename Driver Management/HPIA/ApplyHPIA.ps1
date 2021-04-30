@@ -8,6 +8,7 @@
  TO-Do
  - Fallback to latest support OS?
  - Clean-up install files that are creating under C:\HPIA
+ - Setup for precache.
 
 ApplyHPIA.ps1 -OSVersion 20H2 -Siteserver "server.domain.local" -DownloadPath CCMCache -BIOSPwd "Password.pwd"
 
@@ -142,7 +143,7 @@ catch [System.Security.Authentication.AuthenticationException] {
 					
 	try {
 		# Call AdminService endpoint to retrieve package data
-		        $Filter = "HPIA-$OSversion-HP ProBook 650 G4 8416"
+        #$Filter = "HPIA-$OSversion-HP ProBook 650 G4 8416"
         #$Filter = "HPIA-$OSversion-" + (Get-WmiObject -Class:Win32_ComputerSystem).Model + " " + (Get-WmiObject -Class:Win32_BaseBoard).Product
 
 
