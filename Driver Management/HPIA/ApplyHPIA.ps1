@@ -85,7 +85,7 @@ if (-not ([string]::IsNullOrEmpty($AdminserviceUser))) {
         Log -Message "Successfully read service account user name from TS environment variable 'Adminserviceuser': $($AdminserviceUser)" -Type 1 -Component "HPIA" -LogFile $LogFile
     }
 else {
-        Log -Message "Required service account user name could not be determined from TS environment variable" -type 3 -Component "HPIA" -LogFile $LogFile
+        Log -Message "Required service account user name could not be determined from TS environment variable 'Adminserviceuser'" -type 3 -Component "HPIA" -LogFile $LogFile
         
         # Throw terminating error
     }
@@ -100,7 +100,7 @@ if ([string]::IsNullOrEmpty($Password)) {
 					# Attempt to read TSEnvironment variable AdminservicePassword
 					$Password = $TSEnvironment.Value("AdminservicePassword")
 					if (-not([string]::IsNullOrEmpty($Password))) {
-						Log -Message "Successfully read service account password from TS environment variable 'AdminservicePassword': ********" -Component "HPIA" -type 3 -LogFile $LogFile
+						Log -Message "Successfully read service account password from TS environment variable 'AdminservicePassword': ********" -Component "HPIA" -type 1 -LogFile $LogFile
 					}
 					else {
 						Log -message "Required service account password could not be determined from TS environment variable" -Component "HPIA" -type 3 -LogFile $LogFile
