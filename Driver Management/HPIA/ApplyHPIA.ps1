@@ -26,14 +26,14 @@ param(
     [string]$SiteServer,
     [Parameter(Mandatory=$True, HelpMessage='OS Version')]
     [string]$OSVersion,
-    [Parameter(Mandatory=$False, ParameterSetName = "CCMCache",HelpMessage='Specify Path to download to')]
+    [parameter(Mandatory = $True, HelpMessage = "Specify the name of BIOS password file.")]
+	[string]$BIOSPwd,
+    [Parameter(Mandatory=$False,HelpMessage='Specify Path to download to')]
     [string]$DownloadPath = "CCMCache",
-    [parameter(Mandatory = $false, ParameterSetName = "PreCache", HelpMessage = "Specify a custom path for the PreCache directory, overriding the default CCMCache directory.")]
+    [parameter(Mandatory = $false, HelpMessage = "Specify a custom path for the PreCache directory, overriding the default CCMCache directory.")]
 	[ValidateNotNullOrEmpty()]
-	[string]$PreCache,
-    [parameter(Mandatory = $false, ParameterSetName = "BIOSPassword", HelpMessage = "Specify the name of BIOS password file.")]
-	[ValidateNotNullOrEmpty()]
-	[string]$BIOSPwd
+	[string]$PreCache
+
 )
 
 
@@ -104,7 +104,9 @@ if ([string]::IsNullOrEmpty($Password)) {
 					}
 					else {
 						Log -message "Required service account password could not be determined from TS environment variable" -Component "HPIA" -type 3 -LogFile $LogFile
-						
+                        $Errorcode = "Required service account password could not be determined from TS environment variable"
+                        (new-object -ComObject Microsoft.SMS.TsProgressUI).CloseProgressDialog() ; (new-object -ComObject wscript.shell).Popup("$($Errorcode) ",0,'Warning',0x0 + 0x30) ; Exit 0
+
 						# Throw terminating error
 					}
 				}
@@ -120,8 +122,8 @@ $Credential = New-Object -TypeName System.Management.Automation.PSCredential -Ar
 
 
 # Variables for ConfigMgr Adminservice.        
-#$Filter = "HPIA-$OSVersion-HP ProBook 430 G6 8536"
-$Filter = "HPIA-$OSversion-" + (Get-WmiObject -Class:Win32_ComputerSystem).Model + " " + (Get-WmiObject -Class:Win32_BaseBoard).Product
+$Filter = "HPIA-$OSVersion-HP ProBook 430 G5 8536"
+#$Filter = "HPIA-$OSversion-" + (Get-WmiObject -Class:Win32_ComputerSystem).Model + " " + (Get-WmiObject -Class:Win32_BaseBoard).Product
 $FilterPackages = "/SMS_Package?`$filter=contains(Name,'$($Filter)')"
 $AdminServiceURL = "https://{0}/AdminService/wmi" -f $SiteServer
 $AdminServiceUri = $AdminServiceURL + $FilterPackages
@@ -153,7 +155,7 @@ catch [System.Security.Authentication.AuthenticationException] {
 		log -Message "Failed to retrive driver package from ConfigMgr Adminservice for $($Filter)." -Type 3 -Component HPIA -LogFile $LogFile				
 		# Throw terminating error
         $Errorcode = "Failed to retrive driver package from ConfigMgr Adminservice for $($Filter)."
-        [System.Windows.MessageBox]::Show("$Errorcode", 'Error','OK','Stop')
+        (new-object -ComObject Microsoft.SMS.TsProgressUI).CloseProgressDialog() ; (new-object -ComObject wscript.shell).Popup("$($Errorcode) ",0,'Warning',0x0 + 0x30) ; Exit 0
         Throw
 	}
 }
@@ -162,7 +164,7 @@ catch {
 		log -Message "Failed to retrive driver package from ConfigMgr Adminservice for $($Filter)." -Type 3 -Component HPIA -LogFile $LogFile				
 		# Throw terminating error
         $Errorcode = "Failed to retrive driver package from ConfigMgr Adminservice for $($Filter)."
-        [System.Windows.MessageBox]::Show("$Errorcode", 'Error','OK','Stop')
+        (new-object -ComObject Microsoft.SMS.TsProgressUI).CloseProgressDialog() ; (new-object -ComObject wscript.shell).Popup("$($Errorcode) ",0,'Warning',0x0 + 0x30) ; Exit 0
         Throw
 
 }
@@ -174,11 +176,13 @@ $TSEnvironment.value("OSDDownloadDestinationLocationType") = "$($DownloadPath)"
 $TSEnvironment.value("OSDDownloadContinueDownloadOnError") = "1"
 $TSEnvironment.value("OSDDownloadDownloadPackages") = "$($HPIAPackage.PackageID)"
 $TSEnvironment.value("OSDDownloadDestinationVariable") = "$($Softpaq)"
-$ContentPath = $TSEnvironment.Value("softpaq01") 
+
 Log -Message "Setting OSDDownloadDownloadPackages: $($DownloadPath)" -type 1 -LogFile $LogFile
 Log -Message "Setting OSDDownloadContinueDownloadOnError: 1" -type 1 -LogFile $LogFile
 Log -Message "Setting OSDDownloadDownloadPackages: $($ContentPath)" -type 1 -LogFile $LogFile
 Log -Message "Setting OSDDownloadDestinationVariable: $($Softpaq)" -type 1 -LogFile $LogFile
+
+
 
 function Invoke-Executable {
 		param(
@@ -231,9 +235,13 @@ $ReturnCode = Invoke-Executable -FilePath (Join-Path -Path $env:windir -ChildPat
 				
 		# Throw terminating error
         $Errorcode = "Failed to download or driver package is missing in ConfigMgr: $($Filter)."
-        [System.Windows.MessageBox]::Show("$Errorcode", 'Error','OK','Stop')
-
+        #(new-object -ComObject Microsoft.SMS.TsProgressUI).CloseProgressDialog() ; (new-object -ComObject wscript.shell).Popup("$($Errorcode) ",0,'Warning',0x0 + 0x30) ; Exit 0
+        #Exit 
 	}
+
+# Set Softpaq to Softpaq01 to get an working directory. 
+($ContentPath) = $TSEnvironment.Value("softpaq01") 
+Log -Message "Setting Softpaq01: $($ContentPath)" -type 1 -LogFile $LogFile
 
 log -Message "Setting task sequence variable OSDDownloadDownloadPackages to a blank value" -Type 1 -Component HPIA -LogFile $LogFile
 $TSEnvironment.Value("OSDDownloadDownloadPackages") = [System.String]::Empty
@@ -259,12 +267,12 @@ $TSEnvironment.Value("OSDDownloadDestinationPath") = [System.String]::Empty
        {
             Log -Message "Check if BIOS file exists." -type 1 -Component "HPIA" -LogFile $LogFile  
             $BIOSPwd = Get-childitem -Path $ContentPath -Filter "*.bin"
-            $Argument = "/Operation:Analyze /Action:install /Selection:All /OfflineMode:Repository /noninteractive /Debug  /SoftpaqDownloadFolder:C:\HPIA /ReportFolder:$($HPIALogFile) /BIOSPwdFile:$($BIOSPwd.Name)"              
+            $Argument = "/Operation:Analyze /Action:install /Selection:All /OfflineMode:Repository /noninteractive /Debug /SoftpaqDownloadFolder:C:\HPIA /ReportFolder:$($HPIALogFile) /BIOSPwdFile:$($BIOSPwd.Name)"              
             Log -Message "BIOS file found, running HPIA with following install arguments: $($Argument)." -type 1 -Component "HPIA" -LogFile $LogFile  
-
+          
        }
        else {
-            $Argument = "/Operation:Analyze /Action:install /Selection:All /OfflineMode:Repository /noninteractive /Debug  /SoftpaqDownloadFolder:C:\HPIA /ReportFolder:$($HPIALogFile)" 
+            $Argument = "/Operation:Analyze /Action:install /Selection:All /OfflineMode:Repository /noninteractive /Debug /SoftpaqDownloadFolder:C:\HPIA /ReportFolder:$($HPIALogFile)" 
             Log -Message "BIOS file not found, running HPIA with following install arguments: $($Argument)." -type 1 -Component "HPIA" -LogFile $LogFile  
  
        }
@@ -272,6 +280,9 @@ $TSEnvironment.Value("OSDDownloadDestinationPath") = [System.String]::Empty
         # Start HPIA Update process 
         Log -Message "Starting HPIA installation." -type 1 -Component "HPIA" -LogFile $LogFile
         $HPIAProcess = Start-Process -FilePath "HPImageAssistant.exe" -WorkingDirectory "$ContentPath" -ArgumentList "$Argument" 
+        #Set-Location $ContentPath
+        #$HPIAProcess = .\HPImageAssistant.exe /Operation:Analyze /Action:install /Selection:All /OfflineMode:Repository /noninteractive /Debug  /SoftpaqDownloadFolder:C:\HPIA /ReportFolder:$($HPIALogFile)
+        #$LASTEXITCODE
 
     If ($HPIAProcess.ExitCode -eq 0)
     {
@@ -289,29 +300,34 @@ $TSEnvironment.Value("OSDDownloadDestinationPath") = [System.String]::Empty
     {
         Log -Message "The analysis returned no recommendation." -Component "HPIA" -Type 2 -logfile $LogFile
         $Errorcode = "The analysis returned no recommendation.."
-        [System.Windows.MessageBox]::Show("$Errorcode", 'Error','OK','Stop')
+        (new-object -ComObject Microsoft.SMS.TsProgressUI).CloseProgressDialog() ; (new-object -ComObject wscript.shell).Popup("$($Errorcode) ",0,'Warning',0x0 + 0x30) ; Exit 0
         Exit 256
     }
     elseif ($HPIAProcess.ExitCode -eq 4096) 
     {
         Log -Message "This platform is not supported!" -Type 3 -Component "HPIA" -Type 3 -logfile $LogFile
         $Errorcode = "This platform is not supported!"
-        [System.Windows.MessageBox]::Show("$Errorcode", 'Error','OK','Stop')
+        (new-object -ComObject Microsoft.SMS.TsProgressUI).CloseProgressDialog() ; (new-object -ComObject wscript.shell).Popup("$($Errorcode) ",0,'Warning',0x0 + 0x30) ; Exit 0
         exit 4096
     }
     elseif ($HPIAProcess.ExitCode -eq 16384) {
         
         Log -Message "No matching configuration found on HP.com" -Type 3 -Component "HPIA" -Type 3 -logfile $LogFile
         $Errorcode = "No matching configuration found on HP.com"
-        [System.Windows.MessageBox]::Show("$Errorcode", 'Error','OK','Stop')
+        (new-object -ComObject Microsoft.SMS.TsProgressUI).CloseProgressDialog() ; (new-object -ComObject wscript.shell).Popup("$($Errorcode) ",0,'Warning',0x0 + 0x30) ; Exit 0
+    }
+    elseif ($LASTEXITCODE -eq -196608) {
+        
+        Log -Message " Exiting with exit code: ReferenceFileOpenFailed" -Type 3 -Component "HPIA" -Type 3 -logfile $LogFile
+        $Errorcode = " Exiting with exit code: ReferenceFileOpenFailed"
+        (new-object -ComObject Microsoft.SMS.TsProgressUI).CloseProgressDialog() ; (new-object -ComObject wscript.shell).Popup("$($Errorcode) ",0,'Warning',0x0 + 0x30) ; Exit -196608
     }
     Else
     {
         Log -Message "Process exited with code $($HPIAProcess.ExitCode). Expecting 0." -type 3 -Component "HPIA" -LogFile $LogFile
-        $Errorcode = "Process exited with code $($HPIAProcess.ExitCode). Expecting 0."
-        [System.Windows.MessageBox]::Show("$Errorcode", 'Error','OK','Stop')
-
-        Exit 
+        $Errorcode = "Process exited with code $($HPIAProcess.ExitCode) . Expecting 0."
+        (new-object -ComObject Microsoft.SMS.TsProgressUI).CloseProgressDialog() ; (new-object -ComObject wscript.shell).Popup("$($Errorcode) ",0,'Warning',0x0 + 0x30) ; Exit 0
+        
     }
 }
 catch 
@@ -319,12 +335,10 @@ catch
     Log -Message "Failed to start the HPImageAssistant.exe: $($_.Exception.Message)" -Component "HPIA" -type 3 -Logfile $Logfile
     Exit $($_.Exception.Message)
 }
-
-  }
-  else
+    else
   {
       Log -Message "Script is running as Precache, skipping to install HPIA." -Type 2 -Component "HPIA" -logfile $LogFile
 
   }
-
+}
 Log -Message "HPIA script is now completed." -Type 3 -Component "HPIA" -Type 3 -logfile $LogFile
