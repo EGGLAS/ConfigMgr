@@ -96,7 +96,7 @@ if ([string]::IsNullOrEmpty($Password)) {
 				}
 				default {
 					# Attempt to read TSEnvironment variable AdminservicePassword
-					$Password = $TSEnvironment.Value("$AdminservicePassword")
+					$Password = $TSEnvironment.Value("AdminservicePassword")
 					if (-not([string]::IsNullOrEmpty($Password))) {
 						Log -Message "Successfully read service account password from TS environment variable 'AdminservicePassword': ********" -Component "HPIA" -type 3 -LogFile $LogFile
 					}
