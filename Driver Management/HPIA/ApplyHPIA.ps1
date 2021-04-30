@@ -120,8 +120,8 @@ $Credential = New-Object -TypeName System.Management.Automation.PSCredential -Ar
 
 
 # Variables for ConfigMgr Adminservice.        
-#$Filter = "HPIA-$OSVersion-HP ProBook 430 G6 8536"
-$Filter = "HPIA-$OSversion-" + (Get-WmiObject -Class:Win32_ComputerSystem).Model + " " + (Get-WmiObject -Class:Win32_BaseBoard).Product
+$Filter = "HPIA-$OSVersion-HP ProBook 430 G6 8536"
+#$Filter = "HPIA-$OSversion-" + (Get-WmiObject -Class:Win32_ComputerSystem).Model + " " + (Get-WmiObject -Class:Win32_BaseBoard).Product
 $FilterPackages = "/SMS_Package?`$filter=contains(Name,'$($Filter)')"
 $AdminServiceURL = "https://{0}/AdminService/wmi" -f $SiteServer
 $AdminServiceUri = $AdminServiceURL + $FilterPackages
@@ -154,6 +154,7 @@ catch [System.Security.Authentication.AuthenticationException] {
 		# Throw terminating error
         $Errorcode = "Failed to retrive driver package from ConfigMgr Adminservice for $($Filter)."
         [System.Windows.MessageBox]::Show("$Errorcode", 'Error','OK','Stop')
+        Throw
 	}
 }
 catch {
@@ -162,6 +163,7 @@ catch {
 		# Throw terminating error
         $Errorcode = "Failed to retrive driver package from ConfigMgr Adminservice for $($Filter)."
         [System.Windows.MessageBox]::Show("$Errorcode", 'Error','OK','Stop')
+        Throw
 
 }
 
@@ -251,18 +253,25 @@ $TSEnvironment.Value("OSDDownloadDestinationPath") = [System.String]::Empty
  if ($PreCache -ne "Precache")
  {
     try
-    {
+    { 
      # Check for BIOS File.
-       if ($BIOSPwd -eq "")
+       if ($BIOSPwd -ne "")
        {
-        Log -Message "Check if BIOS file exists." -type 1 -Component "HPIA" -LogFile $LogFile  
-        $BIOSPwd = Get-childitem -Path $ContentPath -Filter "*.pwd"
-                
+            Log -Message "Check if BIOS file exists." -type 1 -Component "HPIA" -LogFile $LogFile  
+            $BIOSPwd = Get-childitem -Path $ContentPath -Filter "*.bin"
+            $Argument = "/Operation:Analyze /Action:install /Selection:All /OfflineMode:Repository /noninteractive /Debug  /SoftpaqDownloadFolder:C:\HPIA /ReportFolder:$($HPIALogFile) /BIOSPwdFile:$($BIOSPwd.Name)"              
+            Log -Message "BIOS file found, running HPIA with following install arguments: $($Argument)." -type 1 -Component "HPIA" -LogFile $LogFile  
+
+       }
+       else {
+            $Argument = "/Operation:Analyze /Action:install /Selection:All /OfflineMode:Repository /noninteractive /Debug  /SoftpaqDownloadFolder:C:\HPIA /ReportFolder:$($HPIALogFile)" 
+            Log -Message "BIOS file not found, running HPIA with following install arguments: $($Argument)." -type 1 -Component "HPIA" -LogFile $LogFile  
+ 
        }
 
         # Start HPIA Update process 
         Log -Message "Starting HPIA installation." -type 1 -Component "HPIA" -LogFile $LogFile
-        $HPIAProcess = Start-Process -FilePath "HPImageAssistant.exe" -WorkingDirectory "$ContentPath" -ArgumentList "/Operation:Analyze /Action:install /Selection:All /OfflineMode:Repository /noninteractive /Debug  /SoftpaqDownloadFolder:C:\HPIA /ReportFolder:$($HPIALogFile) /BIOSPwdFile:$($BIOSPwd.Name)" 
+        $HPIAProcess = Start-Process -FilePath "HPImageAssistant.exe" -WorkingDirectory "$ContentPath" -ArgumentList "$Argument" 
 
     If ($HPIAProcess.ExitCode -eq 0)
     {
@@ -298,7 +307,7 @@ $TSEnvironment.Value("OSDDownloadDestinationPath") = [System.String]::Empty
     }
     Else
     {
-        Log -Message "Process exited with code $($HPIAProcess.ExitCode). Expecting 0." -Component "HPIA" -Log 3
+        Log -Message "Process exited with code $($HPIAProcess.ExitCode). Expecting 0." -type 3 -Component "HPIA" -LogFile $LogFile
         $Errorcode = "Process exited with code $($HPIAProcess.ExitCode). Expecting 0."
         [System.Windows.MessageBox]::Show("$Errorcode", 'Error','OK','Stop')
 
