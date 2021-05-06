@@ -327,8 +327,8 @@ $TSEnvironment.Value("OSDDownloadDestinationPath") = [System.String]::Empty
     }
     Else
     {
-        Log -Message "Process exited with code $($HPIAProcess.ExitCode). Expecting 0." -type 1 -Component "HPIA" -LogFile $LogFile
-        $Errorcode = "Process exited with code $($HPIAProcess.ExitCode). Expecting 0." 
+        Log -Message "Process exited with code $($HPIAProcess.ExitCode). Expecting the exit code to be 0." -type 1 -Component "HPIA" -LogFile $LogFile
+        $Errorcode = "Process exited with code $($HPIAProcess.ExitCode). Expecting the exit code to be 0." 
     }
     }
     catch 
