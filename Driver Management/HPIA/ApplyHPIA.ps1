@@ -291,46 +291,45 @@ $TSEnvironment.Value("OSDDownloadDestinationPath") = [System.String]::Empty
     If ($HPIAProcess.ExitCode -eq 0)
     {
         
-        Log -Message "Installations is completed" -Component "HPIA" -Type 1 -logfile $LogFile
-        write-host "Installations is completed With Exit 0" -ForegroundColor Green
+        Log -Message "Installations is completed with Exit code 0" -Component "HPIA" -Type 1 -logfile $LogFile
+        write-host "Installations is completed With Exit code 0" -ForegroundColor Green
 
     }
+    If ($HPIAProcess.ExitCode -eq 3010)
+    {
+    
+        Log -Message "Install Reboot Required for SoftPaq installations are successful, and at least one requires a reboot" -Component "HPIA" -Type 1 -logfile $LogFile
 
-        If ($HPIAProcess.ExitCode -eq 3010)
-        {
-        
-            Log -Message "Install Reboot Required for SoftPaq installations are successful, and at least one requires a reboot" -Component "HPIA" -Type 1 -logfile $LogFile
-
-        }
-        elseif ($HPIAProcess.ExitCode -eq 256) 
-        {
-            Log -Message "The analysis returned no recommendation." -Component "HPIA" -Type 2 -logfile $LogFile
-            $Errorcode = "The analysis returned no recommendation.."
-            (new-object -ComObject Microsoft.SMS.TsProgressUI).CloseProgressDialog() ; (new-object -ComObject wscript.shell).Popup("$($Errorcode) ",0,'Warning',0x0 + 0x30) ; Exit 0
-            Exit 256
-        }
-        elseif ($HPIAProcess.ExitCode -eq 3020) 
-        {
-            Log -Message "Installed failed for one or more softpaqs, second pass is needed in the task sequence. Exited with $($HPIAProcess.ExitCode)" -Component "HPIA" -Type 2 -logfile $LogFile # Just run the driver step again.
-        }
-        elseif ($HPIAProcess.ExitCode -eq 4096) 
-        {
-            Log -Message "This platform is not supported!" -Type 3 -Component "HPIA" -Type 3 -logfile $LogFile
-            $Errorcode = "This platform is not supported!"
-            (new-object -ComObject Microsoft.SMS.TsProgressUI).CloseProgressDialog() ; (new-object -ComObject wscript.shell).Popup("$($Errorcode) ",0,'Warning',0x0 + 0x30) ; Exit 0
-            exit 4096
-        }
-        elseif ($HPIAProcess.ExitCode -eq 16384) {
-        
-            Log -Message "No matching configuration found on HP.com" -Type 3 -Component "HPIA" -Type 3 -logfile $LogFile
-            $Errorcode = "No matching configuration found on HP.com"
-            (new-object -ComObject Microsoft.SMS.TsProgressUI).CloseProgressDialog() ; (new-object -ComObject wscript.shell).Popup("$($Errorcode) ",0,'Warning',0x0 + 0x30) ; Exit 0
-        }
-        Else
-        {
-            Log -Message "Process exited with code $($HPIAProcess.ExitCode). Expecting 0." -type 1 -Component "HPIA" -LogFile $LogFile
-            $Errorcode = "Process exited with code $($HPIAProcess.ExitCode). Expecting 0." 
-        }
+    }
+    elseif ($HPIAProcess.ExitCode -eq 256) 
+    {
+        Log -Message "The analysis returned no recommendation." -Component "HPIA" -Type 2 -logfile $LogFile
+        $Errorcode = "The analysis returned no recommendation.."
+        (new-object -ComObject Microsoft.SMS.TsProgressUI).CloseProgressDialog() ; (new-object -ComObject wscript.shell).Popup("$($Errorcode) ",0,'Warning',0x0 + 0x30) ; Exit 0
+        Exit 256
+    }
+    elseif ($HPIAProcess.ExitCode -eq 3020) 
+    {
+        Log -Message "Installed failed for one or more softpaqs, second pass is needed in the task sequence. Exited with $($HPIAProcess.ExitCode)" -Component "HPIA" -Type 2 -logfile $LogFile # Just run the driver step again.
+    }
+    elseif ($HPIAProcess.ExitCode -eq 4096) 
+    {
+        Log -Message "This platform is not supported!" -Type 3 -Component "HPIA" -Type 3 -logfile $LogFile
+        $Errorcode = "This platform is not supported!"
+        (new-object -ComObject Microsoft.SMS.TsProgressUI).CloseProgressDialog() ; (new-object -ComObject wscript.shell).Popup("$($Errorcode) ",0,'Warning',0x0 + 0x30) ; Exit 0
+        exit 4096
+    }
+    elseif ($HPIAProcess.ExitCode -eq 16384) {
+    
+        Log -Message "No matching configuration found on HP.com" -Type 3 -Component "HPIA" -Type 3 -logfile $LogFile
+        $Errorcode = "No matching configuration found on HP.com"
+        (new-object -ComObject Microsoft.SMS.TsProgressUI).CloseProgressDialog() ; (new-object -ComObject wscript.shell).Popup("$($Errorcode) ",0,'Warning',0x0 + 0x30) ; Exit 0
+    }
+    Else
+    {
+        Log -Message "Process exited with code $($HPIAProcess.ExitCode). Expecting 0." -type 1 -Component "HPIA" -LogFile $LogFile
+        $Errorcode = "Process exited with code $($HPIAProcess.ExitCode). Expecting 0." 
+    }
     }
     catch 
     {
