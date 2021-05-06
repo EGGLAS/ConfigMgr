@@ -311,7 +311,7 @@ $TSEnvironment.Value("OSDDownloadDestinationPath") = [System.String]::Empty
         }
         elseif ($HPIAProcess.ExitCode -eq 3020) 
         {
-            Log -Message "Installed failed n one or more softpaqs, needs second pass. 3020" -Component "HPIA" -Type 2 -logfile $LogFile # Just run the driver step again.
+            Log -Message "Installed failed for one or more softpaqs, second pass is needed in the task sequence. Exited with $($HPIAProcess.ExitCode)" -Component "HPIA" -Type 2 -logfile $LogFile # Just run the driver step again.
         }
         elseif ($HPIAProcess.ExitCode -eq 4096) 
         {
@@ -329,7 +329,7 @@ $TSEnvironment.Value("OSDDownloadDestinationPath") = [System.String]::Empty
         Else
         {
             Log -Message "Process exited with code $($HPIAProcess.ExitCode). Expecting 0." -type 1 -Component "HPIA" -LogFile $LogFile
-            $Errorcode = "Process exited with code $($HPIAProcess.ExitCode) . Expecting 0." 
+            $Errorcode = "Process exited with code $($HPIAProcess.ExitCode). Expecting 0." 
         }
     }
     catch 
