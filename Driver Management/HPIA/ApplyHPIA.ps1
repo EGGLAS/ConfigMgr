@@ -1,6 +1,10 @@
 <# Author: Nicklas Eriksson & Daniel Gråhns
- Date: 2021-03-11
- Purpose: Download HP Drivers and apply HPIA drivers during OS Deployment or OS Upgrade.
+Date: 2021-03-11
+ Purpose: Download HP Drivers and apply HPIA drivers when running OS Deployment, OS Upgrade or update drivers.
+
+ Implement following TS variabels with "Do not display this value": 
+ - AdminserviceUser
+ - AdminservicePassword
 
  Version: 1.0
  Changelog: 1.0 - 2021-02-11 - Nicklas Eriksson -  Script was created. Purpose to use one script to download and install HPIA.
