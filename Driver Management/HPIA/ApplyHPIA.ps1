@@ -11,9 +11,11 @@
 TO-Do
  - Fallback to latest support OS?
 
-ApplyHPIA.ps1 -Siteserver "server.domain.local" -OSVersion "20H2"  
-ApplyHPIA.ps1 -Siteserver "server.domain.local" -OSVersion "20H2" -DownloadPath "CCMCache" -BIOSPwd "Password.pwd"
-ApplyHPIA.ps1 -Siteserver "server.domain.local" -OSVersion "20H2" -Precache "PreCache"
+ Script can be triggerd with folloging parameters.
+ApplyHPIA.ps1 -SiteServer "server.domain.local" -OSVersion "20H2"
+ApplyHPIA.ps1 -SiteServer "server.domain.local" -OSVersion "20H2" -BIOSPwd "Password.pwd"
+ApplyHPIA.ps1 -SiteServer "server.domain.local" -OSVersion "20H2" -DownloadPath "CCMCache" -BIOSPwd "Password.pwd"
+ApplyHPIA.ps1 -SiteServer "server.domain.local" -OSVersion "20H2" -Precache "PreCache"
 
 NOTES 
  - Clean-up install files that are creating under C:\HPIA - Add Remove-Item -Path "C:\HPIA" in task sequence if you want to clean-up, seperate step. 
