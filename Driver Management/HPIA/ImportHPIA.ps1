@@ -2,15 +2,16 @@
  Date: 2021-02-11
  Purpose: Download HP Drivers to repository and use with Webservice and TaskSequence
 
- Version: 1.3
+ Version: 1.4
  Changelog: 1.0 - 2021-02-11 - Nicklas Eriksson -  Script Edited and fixed Daniels crappy hack and slash code :)
             1.1 - 2021-02-18 - Nicklas Eriksson - Added HPIA to download to HPIA Download instead to Root Directory, Added BIOSPwd should be copy to HPIA so BIOS upgrades can be run during OSD. 
             1.2 - 2021-04-14 - Daniel Gråhns - Added check if Offline folder is created
             1.3 - 2021-04-27 - Nicklas Eriksson - Completed the function to so the script also downloaded BIOS updates during sync.
+            1.4 - 2021-05-21 - Nicklas Eriksson & Daniel Gråhns - Changed the logic for how to check if the latest HPIA is downloaded or not since HP changed the naming the structure.
  TO-Do
- - Add some sort of clean-up do delete old packages that are not needed anymore. 
  - Maybe add support for Software.
  - Can we create an if around this Monitor changes if the path exists go into there if not skip since it throws an error?
+
  Credit, inspiration and copy/paste code from: garytown.com, dotnet-helpers.com, ConfigMgr.com, www.imab.dk, Ryan Engstrom
 #>
 
@@ -20,6 +21,8 @@ param(
     [string]$Config
 )
 
+
+#$Config = "E:\Scripts\ImportHPIA\Config.xml" #(.\ImportHPIA.ps1 -config .\config.xml)
 
 function Log {
     Param (
@@ -55,8 +58,9 @@ if (Test-Path -Path $Config) {
         }
         catch {
             $ErrorMessage = $_.Exception.Message
-            Write-host "Error, could not read $Config" -ForegroundColor Red
-            Write-host  "Error message: $ErrorMessage" -ForegroundColor Red
+            Log -Message "Error, could not read $Config" -Level Error -LogFile $Logfile
+            Log -Message "Error message: $ErrorMessage" -Level Error -LogFile $Logfile
+            Exit 1
         }
 
  }
@@ -82,10 +86,13 @@ $XMLEnableSMTP = $Xml.Configuration.Option | Where-Object {$_.Name -like 'Enable
 #$XMLLogfile = $Xml.Configuration.Option | Where-Object {$_.Name -like 'Logfile'} | Select-Object -ExpandProperty 'Value'
 
 # Hardcoded variabels in the script.
-$OS = "Win10" #OS do not change this.
 $ScriptVersion = "1.3"
+$OS = "Win10" #OS do not change this.
 $LogFile = "$InstallPath\RepositoryUpdate.log" #Filename for the logfile.
-#$Config = "E:\Scripts\ImportHPIA\Config.xml" #(.\ImportHPIA.ps1 -config .\config.xml)
+
+
+
+
 
 Log  -Message  "<--------------------------------------------------------------------------------------------------------------------->"  -type 2 -LogFile $LogFile
 Write-host "Info: Successfully loaded ConfigFile from $Config"
@@ -126,7 +133,7 @@ else
     Write-host "Info: HPIA Download folder exists, no need to create folder"
 }
 
-$CurrentHPIAVersion = Get-ChildItem "$($XMLInstallHPIA.Value)\HPIA Download" -Name SP*.*
+$CurrentHPIAVersion = Get-ChildItem -path "$($XMLInstallHPIA.Value)\HPIA Download" -Name *.EXE -ErrorAction SilentlyContinue | sort LastWriteTime -Descending | select -First 1
 
 # CHeck if HPIA should autoupdate from HP if's specified in the config.
 
@@ -159,7 +166,8 @@ if ((Test-path -Path "$($XMLInstallHPIA.Value)\HPIA Base\$($BIOS.Name)") -eq $fa
 }
 
 # If HPIA Installer was not updated, set false flag value
-$NewHPIAVersion = Get-ChildItem "$($XMLInstallHPIA.Value)\HPIA Download" -Name SP*.* -ErrorAction SilentlyContinue | select -last 1
+#$NewHPIAVersion = Get-ChildItem "$($XMLInstallHPIA.Value)\HPIA Download" -Name SP*.* -ErrorAction SilentlyContinue | select -last 1
+$NewHPIAVersion = Get-ChildItem -path "$($XMLInstallHPIA.Value)\HPIA Download" -Name *.EXE -ErrorAction SilentlyContinue | sort LastWriteTime -Descending | select -First 1
 
 if($CurrentHPIAVersion -eq $NewHPIAVersion) {
     $HPIAVersionUpdated = "False"
