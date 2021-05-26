@@ -1,12 +1,11 @@
 <# Author: Nicklas Eriksson & Daniel Gråhns
-Date: 2021-03-11
+Date: 2021-02-11
  Purpose: Download HP Drivers and apply HPIA drivers when running OS Deployment, OS Upgrade or update drivers.
 
  Implement following TS variabels with "Do not display this value": 
  - AdminserviceUser
  - AdminservicePassword
 
- Version: 1.0
  Changelog: 1.0 - 2021-02-11 - Nicklas Eriksson -  Script was created. Purpose to use one script to download and install HPIA.
             1.1 - 2021-04-30 - Daniel Gråhns - added a "c" that was missing just because I wanted to be in the changelog ;P and some other stuff that was hillarious ("reboob"), popup added on error.
             1.2 - 2021-04-30 - Nicklas Eriksson & Daniel Gråhns -Added PreCache function.
