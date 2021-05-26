@@ -1,28 +1,49 @@
-<# Author: Daniel Gr�hns, Nicklas Eriksson
- Date: 2021-02-11
- Purpose: Download HP Drivers to repository and use with Webservice and TaskSequence
+<# Author: Nicklas Eriksson & Daniel Gråhns
+Date: 2021-03-11
+ Purpose: Download HP Drivers and apply HPIA drivers when running OS Deployment, OS Upgrade or update drivers.
 
- Version: 1.4
- Changelog: 1.0 - 2021-02-11 - Nicklas Eriksson -  Script Edited and fixed Daniels crappy hack and slash code :)
-            1.1 - 2021-02-18 - Nicklas Eriksson - Added HPIA to download to HPIA Download instead to Root Directory, Added BIOSPwd should be copy to HPIA so BIOS upgrades can be run during OSD. 
-            1.2 - 2021-04-14 - Daniel Gr�hns - Added check if Offline folder is created
-            1.3 - 2021-04-27 - Nicklas Eriksson - Completed the function to so the script also downloaded BIOS updates during sync.
-            1.4 - 2021-05-21 - Nicklas Eriksson & Daniel Gr�hns - Changed the logic for how to check if the latest HPIA is downloaded or not since HP changed the naming the structure.
- TO-Do
- - Maybe add support for Software.
- - Can we create an if around this Monitor changes if the path exists go into there if not skip since it throws an error?
+ Implement following TS variabels with "Do not display this value": 
+ - AdminserviceUser
+ - AdminservicePassword
 
- Credit, inspiration and copy/paste code from: garytown.com, dotnet-helpers.com, ConfigMgr.com, www.imab.dk, Ryan Engstrom
+ Version: 1.0
+ Changelog: 1.0 - 2021-02-11 - Nicklas Eriksson -  Script was created. Purpose to use one script to download and install HPIA.
+            1.1 - 2021-04-30 - Daniel Gråhns - added a "c" that was missing just because I wanted to be in the changelog ;P and some other stuff that was hillarious ("reboob"), popup added on error.
+            1.2 - 2021-04-30 - Nicklas Eriksson & Daniel Gråhns -Added PreCache function.
+            1.3 - 2021-05-04 - Nicklas Eriksson & Daniel Gråhns - Fixed Logging and Errorhandling - Fixed parameters and PreCahche (needs to be tested)
+            1.4 - 2021-05-05 - Daniel Gråhns - Tested Precache. 
+TO-Do
+ - Fallback to latest support OS?
+
+ Script can be triggerd with folloging parameters.
+ApplyHPIA.ps1 -SiteServer "server.domain.local" -OSVersion "20H2"
+ApplyHPIA.ps1 -SiteServer "server.domain.local" -OSVersion "20H2" -BIOSPwd "Password.pwd"
+ApplyHPIA.ps1 -SiteServer "server.domain.local" -OSVersion "20H2" -DownloadPath "CCMCache" -BIOSPwd "Password.pwd"
+ApplyHPIA.ps1 -SiteServer "server.domain.local" -OSVersion "20H2" -Precache "PreCache"
+
+NOTES 
+ - Clean-up install files that are creating under C:\HPIA - Add Remove-Item -Path "C:\HPIA" in task sequence if you want to clean-up, seperate step. 
+
+Big shoutout and credit to Maurice Dualy and Nikolaj Andersen for their outstanding work for creating Modern Driver Management for making this possible. 
+Some code are borrowed from their awesome solution for making this work.
 #>
 
-[CmdletBinding()]
+[CmdletBinding(DefaultParameterSetName = "CCMCache")]
 param(
-    [Parameter(HelpMessage='Path to XML Configuration File')]
-    [string]$Config
+    [Parameter(Mandatory=$True, HelpMessage='Url to ConfigMgr Adminservice')]
+    [string]$SiteServer,
+    [Parameter(Mandatory=$True, HelpMessage='OS Version')]
+    [string]$OSVersion,
+    [parameter(Mandatory=$False, HelpMessage = "Specify the name of BIOS password file.")]
+	[string]$BIOSPwd,
+    [Parameter(Mandatory=$False,HelpMessage='Specify Path to download to')]
+    [string]$DownloadPath = "CCMCache",
+    [parameter(Mandatory = $false, HelpMessage = "PreCache True/False")]
+	[string]$PreCache,
+    [Parameter(Mandatory=$False,HelpMessage='Specify Path to download to, Not in use yet')]
+    [string]$PreCacheDownloadPath = "CCMCache"
 )
 
-
-#$Config = "E:\Scripts\ImportHPIA\Config.xml" #(.\ImportHPIA.ps1 -config .\config.xml)
 
 function Log {
     Param (
@@ -32,10 +53,8 @@ function Log {
     $ErrorMessage,
     [Parameter(Mandatory=$false)]
     $Component,
-
     [Parameter(Mandatory=$false)]
-    [int]$Type,
-                                                          
+    [int]$Type,                                                    
     [Parameter(Mandatory=$true)]
     $LogFile
                              )
@@ -51,454 +70,277 @@ Type: 1 = Normal, 2 = Warning (yellow), 3 = Error (red)
     $LogMessage | Out-File -Append -Encoding UTF8 -FilePath $LogFile
 }
 
-if (Test-Path -Path $Config) {
-        try { 
-            $Xml = [xml](Get-Content -Path $Config -Encoding UTF8)
-            Log -Message "Successfully loaded $Config" -LogFile $Logfile
-        }
-        catch {
-            $ErrorMessage = $_.Exception.Message
-            Log -Message "Error, could not read $Config" -Level Error -LogFile $Logfile
-            Log -Message "Error message: $ErrorMessage" -Level Error -LogFile $Logfile
-            Exit 1
-        }
 
- }
- 
-
-# Getting information from Config File
-$InstallPath = $Xml.Configuration.Install | Where-Object {$_.Name -like 'InstallPath'} | Select-Object -ExpandProperty "Value"
-$XMLInstallHPIA = $Xml.Configuration.Install | Where-Object {$_.Name -like 'InstallHPIA'} | Select-Object 'Enabled','Value'
-$SiteCode = $Xml.Configuration.Install | Where-Object {$_.Name -like 'SiteCode'} | Select-Object -ExpandProperty 'Value'
-$CMFolderPath = $Xml.Configuration.Install | Where-Object {$_.Name -like 'CMFolderPath'} | Select-Object -ExpandProperty 'Value'
-$ConfigMgrModule = $Xml.Configuration.Install | Where-Object {$_.Name -like 'ConfigMgrModule'} | Select-Object -ExpandProperty 'Value'
-$InstallHPCML = $Xml.Configuration.Install | Where-Object {$_.Name -like 'InstallHPCML'} | Select-Object -ExpandProperty 'Enabled'
-$RepositoryPath = $Xml.Configuration.Install | Where-Object {$_.Name -like 'RepositoryPath'} | Select-Object -ExpandProperty 'Value'
-$SupportedModelsCSV = $Xml.Configuration.Install | Where-Object {$_.Name -like 'SupportComputerModels'} | Select-Object -ExpandProperty 'Value'
-$XMLSSMONLY = $Xml.Configuration.Feature | Where-Object {$_.Name -like 'SSMOnly'} | Select-Object -ExpandProperty 'Enabled'
-$XMLCategory1 = $Xml.Configuration.Feature | Where-Object {$_.Name -like 'Category1'} | Select-Object -ExpandProperty 'Enabled'
-$XMLCategory2 = $Xml.Configuration.Feature | Where-Object {$_.Name -like 'Category2'} | Select-Object -ExpandProperty 'Enabled'
-$XMLCategory3 = $Xml.Configuration.Feature | Where-Object {$_.Name -like 'Category3'} | Select-Object -ExpandProperty 'Enabled'
-$XMLCategory4 = $Xml.Configuration.Feature | Where-Object {$_.Name -like 'Category4'} | Select-Object -ExpandProperty 'Enabled'
-$XMLCategory5 = $Xml.Configuration.Feature | Where-Object {$_.Name -like 'Category5'} | Select-Object -ExpandProperty 'Enabled'
-$DPGroupName = $Xml.Configuration.Feature | Where-Object {$_.Name -like 'DPGroupName'} | Select-Object -ExpandProperty 'Value'
-$XMLEnableSMTP = $Xml.Configuration.Option | Where-Object {$_.Name -like 'EnableSMTP'} | Select-Object 'Enabled','SMTP',"Adress"
-#$XMLLogfile = $Xml.Configuration.Option | Where-Object {$_.Name -like 'Logfile'} | Select-Object -ExpandProperty 'Value'
-
-# Hardcoded variabels in the script.
-$ScriptVersion = "1.3"
-$OS = "Win10" #OS do not change this.
-$LogFile = "$InstallPath\RepositoryUpdate.log" #Filename for the logfile.
-
-
-
-
-
-Log  -Message  "<--------------------------------------------------------------------------------------------------------------------->"  -type 2 -LogFile $LogFile
-Write-host "Info: Successfully loaded ConfigFile from $Config"
-Log -Message "Successfully loaded ConfigFile from $Config" -LogFile $Logfile
-LOg -Message "Script was started with version: $($ScriptVersion)" -type 1 -LogFile $LogFile 
-
-# CHeck if HPCML should autoupdate from Powershell gallery if's specified in the config.
-if ($InstallHPCML -eq "True")
-{
-        Log -Message "HPCML was enbabled to autoinstall in ConfigFile, starting to install HPCML" -type 1 -LogFile $LogFile
-        Write-host "Info: HPCML was enbabled to autoinstall in ConfigFile, starting to install HPCML"
-        [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12 # Force Powershell to use TLS1.2
-        # make sure Package NuGet is up to date 
-        Install-Module -Name PowerShellGet -Force # install the latest version of PowerSHellGet module
-        Install-Module -Name HPCMSL -Force -AcceptLicense
-        Log -Message "HPCML was successfully updated" -type 1 -LogFile $LogFile
-        Write-host "Info: HPCML was successfully updated" -ForegroundColor Green
-
+# Construct TSEnvironment object
+try {
+    $TSEnvironment = New-Object -ComObject Microsoft.SMS.TSEnvironment -ErrorAction Stop
 }
-else
-{
-    Log -Message "HPCML was not enbabled to autoinstall from Powershell Gallery in ConfigFile" -type 1 -LogFile $LogFile
-
+catch [System.Exception] {
+    Write-Warning -Message "Unable to construct Microsoft.SMS.TSEnvironment object" ; exit 3
 }
 
-# Check if HPIA Installer was updated and create download folder for HPIA.
-if ((Test-path -Path "$($XMLInstallHPIA.Value)\HPIA Download") -eq $false)
-{
-    Log -Message "HPIA Download folder does not exists, creating HPIA Download folder" -type 1 -LogFile $LogFile
-    Write-host "Info: HPIA Download folder does not exists"
-    Write-host "Info: Creating HPIA Download folder" -ForegroundColor Green
-    New-Item -ItemType Directory -Path "$($XMLInstallHPIA.Value)\HPIA Download"
-    New-Item -ItemType File -Path "$($XMLInstallHPIA.Value)\HPIA Download\Dont Delete the latest SP-file.txt"
+# Set TS settings.
+$LogFile = $TSEnvironment.Value("_SMSTSLogPath") + "\HPIAApply.log"
+$Softpaq = "SOFTPAQ"
+$HPIALogFile = $TSEnvironment.Value("_SMSTSLogPath") + "\HPIAInstall.log"
+
+# Borrowed from MSEndpointmgr.com - Invoke-applydriverpackage.ps1 
+# Attempt to read TSEnvironment variable AdminserviceUser 
+$AdminserviceUser = $TSEnvironment.Value("AdminserviceUser")
+if (-not ([string]::IsNullOrEmpty($AdminserviceUser))) {
+               
+        Log -Message "Successfully read service account user name from TS environment variable 'Adminserviceuser': $($AdminserviceUser)" -Type 1 -Component "HPIA" -LogFile $LogFile
+    }
+else {
+        Log -Message "Required service account user name could not be determined from TS environment variable 'Adminserviceuser'" -type 3 -Component "HPIA" -LogFile $LogFile
+        $Errorcode = "Required service account user name could not be determined from TS environment variable"
+        (new-object -ComObject Microsoft.SMS.TsProgressUI).CloseProgressDialog() ; (new-object -ComObject wscript.shell).Popup("$($Errorcode) ",0,'Warning',0x0 + 0x30) ; Exit 0
+        # Throw terminating error
+    }
+
+# Borrowed from MSEndpointmgr.com
+# Invoke-applydriverpackage.ps1 - Validate correct value have been either set as a TS environment variable or passed as parameter input for service account password used to authenticate against the AdminService
+if ([string]::IsNullOrEmpty($Password)) {
+			switch ($Script:PSCmdLet.ParameterSetName) {
+				"Debug" {
+					Log -Message " - Required service account password could not be determined from parameter input" -Component "HPIA" -type 3 -LogFile $LogFile
+				}
+				default {
+					# Attempt to read TSEnvironment variable AdminservicePassword
+					$Password = $TSEnvironment.Value("AdminservicePassword")
+					if (-not([string]::IsNullOrEmpty($Password))) {
+						Log -Message "Successfully read service account password from TS environment variable 'AdminservicePassword': ********" -Component "HPIA" -type 1 -LogFile $LogFile
+					}
+					else {
+						Log -message "Required service account password could not be determined from TS environment variable" -Component "HPIA" -type 3 -LogFile $LogFile
+                        $Errorcode = "Required service account password could not be determined from TS environment variable"
+                        (new-object -ComObject Microsoft.SMS.TsProgressUI).CloseProgressDialog() ; (new-object -ComObject wscript.shell).Popup("$($Errorcode) ",0,'Warning',0x0 + 0x30) ; Exit 0
+
+						# Throw terminating error
+					}
+				}
+			}
+		}
+else {
+	Log -message "Successfully read service account password from parameter input: ********" -Component "HPIA" -type 1 -LogFile $LogFile
 }
-else
-{
-    Log -Message "HPIA Download folder exists, no need to create folder" -type 1 -LogFile $LogFile
-    Write-host "Info: HPIA Download folder exists, no need to create folder"
-}
-
-$CurrentHPIAVersion = Get-ChildItem -path "$($XMLInstallHPIA.Value)\HPIA Download" -Name *.EXE -ErrorAction SilentlyContinue | sort LastWriteTime -Descending | select -First 1
-
-# CHeck if HPIA should autoupdate from HP if's specified in the config.
-
-if ($XMLInstallHPIA.Enabled -eq "True")
-{
-        Log -Message "HPIA was  enbabled to autoinstall in ConfigFile, starting to autoupdate HPIA" -type 1 -LogFile $LogFile
-        Write-host "Info: HPIA was  enbabled to autoinstall in ConfigFile, starting to autoupdate HPIA"
-        Set-location -Path "$($XMLInstallHPIA.Value)\HPIA Download"
-        Install-HPImageAssistant -Extract -DestinationPath "$($XMLInstallHPIA.Value)\HPIA Base"
-        Set-Location -path $InstallPath
-        Log -Message "HPIA was  successfully updated in $($XMLInstallHPIA.Value)\HPIA Base" -type 1 -LogFile $LogFile
-        Write-host "Info: HPIA was  successfully updated in $($XMLInstallHPIA.Value)\HPIA Base" -ForegroundColor Green
         
+# Construct PSCredential object for authentication
+$EncryptedPassword = ConvertTo-SecureString -String $Password -AsPlainText -Force
+$Credential = New-Object -TypeName System.Management.Automation.PSCredential -ArgumentList @($AdminserviceUser, $EncryptedPassword)
+
+
+# Variables for ConfigMgr Adminservice.        
+#$Filter = "HPIA-$OSVersion-HP ProBook 430 G5 8536"
+$Filter = "HPIA-$OSversion-" + (Get-WmiObject -Class:Win32_ComputerSystem).Model + " " + (Get-WmiObject -Class:Win32_BaseBoard).Product
+$FilterPackages = "/SMS_Package?`$filter=contains(Name,'$($Filter)')"
+$AdminServiceURL = "https://{0}/AdminService/wmi" -f $SiteServer
+$AdminServiceUri = $AdminServiceURL + $FilterPackages
+
+try {
+        $AdminServiceResponse = Invoke-RestMethod $AdminServiceUri -Method Get -Credential $Credential -ErrorAction Stop  
+        $HPIAPackage = $AdminServiceResponse.value  | Select-Object Name,PackageID 
+        
+        }
+catch [System.Security.Authentication.AuthenticationException] {
+
+					
+	# Attempt to ignore self-signed certificate binding for AdminService
+	# Convert encoded base64 string for ignore self-signed certificate validation functionality, certification is genereic and no need for change. 
+	$CertificationValidationCallbackEncoded = "DQAKACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAdQBzAGkAbgBnACAAUwB5AHMAdABlAG0AOwANAAoAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAB1AHMAaQBuAGcAIABTAHkAcwB0AGUAbQAuAE4AZQB0ADsADQAKACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAdQBzAGkAbgBnACAAUwB5AHMAdABlAG0ALgBOAGUAdAAuAFMAZQBjAHUAcgBpAHQAeQA7AA0ACgAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgAHUAcwBpAG4AZwAgAFMAeQBzAHQAZQBtAC4AUwBlAGMAdQByAGkAdAB5AC4AQwByAHkAcAB0AG8AZwByAGEAcABoAHkALgBYADUAMAA5AEMAZQByAHQAaQBmAGkAYwBhAHQAZQBzADsADQAKACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAcAB1AGIAbABpAGMAIABjAGwAYQBzAHMAIABTAGUAcgB2AGUAcgBDAGUAcgB0AGkAZgBpAGMAYQB0AGUAVgBhAGwAaQBkAGEAdABpAG8AbgBDAGEAbABsAGIAYQBjAGsADQAKACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAewANAAoAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgAHAAdQBiAGwAaQBjACAAcwB0AGEAdABpAGMAIAB2AG8AaQBkACAASQBnAG4AbwByAGUAKAApAA0ACgAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAewANAAoAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAaQBmACgAUwBlAHIAdgBpAGMAZQBQAG8AaQBuAHQATQBhAG4AYQBnAGUAcgAuAFMAZQByAHYAZQByAEMAZQByAHQAaQBmAGkAYwBhAHQAZQBWAGEAbABpAGQAYQB0AGkAbwBuAEMAYQBsAGwAYgBhAGMAawAgAD0APQBuAHUAbABsACkADQAKACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgAHsADQAKACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAUwBlAHIAdgBpAGMAZQBQAG8AaQBuAHQATQBhAG4AYQBnAGUAcgAuAFMAZQByAHYAZQByAEMAZQByAHQAaQBmAGkAYwBhAHQAZQBWAGEAbABpAGQAYQB0AGkAbwBuAEMAYQBsAGwAYgBhAGMAawAgACsAPQAgAA0ACgAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAZABlAGwAZQBnAGEAdABlAA0ACgAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAKAANAAoAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAATwBiAGoAZQBjAHQAIABvAGIAagAsACAADQAKACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgAFgANQAwADkAQwBlAHIAdABpAGYAaQBjAGEAdABlACAAYwBlAHIAdABpAGYAaQBjAGEAdABlACwAIAANAAoAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAWAA1ADAAOQBDAGgAYQBpAG4AIABjAGgAYQBpAG4ALAAgAA0ACgAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIABTAHMAbABQAG8AbABpAGMAeQBFAHIAcgBvAHIAcwAgAGUAcgByAG8AcgBzAA0ACgAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAKQANAAoAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgAHsADQAKACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgAHIAZQB0AHUAcgBuACAAdAByAHUAZQA7AA0ACgAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAfQA7AA0ACgAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAB9AA0ACgAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAfQANAAoAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAB9AA0ACgAgACAAIAAgACAAIAAgACAA"
+	$CertificationValidationCallback = [Text.Encoding]::Unicode.GetString([Convert]::FromBase64String($CertificationValidationCallbackEncoded))
+					
+	# Load required type definition to be able to ignore self-signed certificate to circumvent issues with AdminService running with ConfigMgr self-signed certificate binding
+	Add-Type -TypeDefinition $CertificationValidationCallback
+	[ServerCertificateValidationCallback]::Ignore()
+					
+	try {
+		# Call AdminService endpoint to retrieve package data
+        $HPIAPackage = $AdminServiceResponse.value  | Select-Object Name,PackageID 
+        
+	}
+	catch [System.Exception] {
+		# Throw terminating error
+		log -Message "Failed to retrive driver package from ConfigMgr Adminservice for $($Filter)." -Type 3 -Component HPIA -LogFile $LogFile				
+		# Throw terminating error
+        $Errorcode = "Failed to retrive driver package from ConfigMgr Adminservice for $($Filter)."
+        (new-object -ComObject Microsoft.SMS.TsProgressUI).CloseProgressDialog() ; (new-object -ComObject wscript.shell).Popup("$($Errorcode) ",0,'Warning',0x0 + 0x30) ; Exit 0
+        Throw
+	}
 }
+catch {
+	# Throw terminating error
+		log -Message "Failed to retrive driver package from ConfigMgr Adminservice for $($Filter)." -Type 3 -Component HPIA -LogFile $LogFile				
+		# Throw terminating error
+        $Errorcode = "Failed to retrive driver package from ConfigMgr Adminservice for $($Filter)."
+        (new-object -ComObject Microsoft.SMS.TsProgressUI).CloseProgressDialog() ; (new-object -ComObject wscript.shell).Popup("$($Errorcode) ",0,'Warning',0x0 + 0x30) ; Exit 0
+        Throw
+
+}
+
+# Should have a check to see $HPIAPackage.PackageID contain something.
+    
+# Setting TS variabels after Admin service has returned correct objects.    
+$TSEnvironment.value("OSDDownloadDestinationLocationType") = "$($DownloadPath)"
+$TSEnvironment.value("OSDDownloadContinueDownloadOnError") = "1"
+$TSEnvironment.value("OSDDownloadDownloadPackages") = "$($HPIAPackage.PackageID)"
+$TSEnvironment.value("OSDDownloadDestinationVariable") = "$($Softpaq)"
+
+Log -Message "Setting OSDDownloadDownloadPackages: $($DownloadPath)" -type 1 -LogFile $LogFile
+Log -Message "Setting OSDDownloadContinueDownloadOnError: 1" -type 1 -LogFile $LogFile
+Log -Message "Setting OSDDownloadDownloadPackages: $($ContentPath)" -type 1 -LogFile $LogFile
+Log -Message "Setting OSDDownloadDestinationVariable: $($Softpaq)" -type 1 -LogFile $LogFile
+
+
+# Borrowed from MSEndpointmgr.com - Invoke-applydriverpackage.ps1 
+function Invoke-Executable {
+		param(
+			[parameter(Mandatory = $true, HelpMessage = "Specify the file name or path of the executable to be invoked, including the extension")]
+			[ValidateNotNullOrEmpty()]
+			[string]$FilePath,
+			
+			[parameter(Mandatory = $false, HelpMessage = "Specify arguments that will be passed to the executable")]
+			[ValidateNotNull()]
+			[string]$Arguments
+		)
+		
+		# Construct a hash-table for default parameter splatting
+		$SplatArgs = @{
+			FilePath = $FilePath
+			NoNewWindow = $true
+			Passthru = $true
+			ErrorAction = "Stop"
+		}
+		
+		# Add ArgumentList param if present
+		if (-not([System.String]::IsNullOrEmpty($Arguments))) {
+			$SplatArgs.Add("ArgumentList", $Arguments)
+		}
+		
+		# Invoke executable and wait for process to exit
+		try {
+			$Invocation = Start-Process @SplatArgs
+			$Handle = $Invocation.Handle
+			$Invocation.WaitForExit()
+		}
+		catch [System.Exception] {
+			Write-Warning -Message $_.Exception.Message; break
+		}
+		
+		return $Invocation.ExitCode
+	}
+
+# Download Drivers
+log -message " - Starting package content download process, this might take some time" -Type 1 -Component HPIA -LogFile $LogFile
+$ReturnCode = Invoke-Executable -FilePath (Join-Path -Path $env:windir -ChildPath "CCM\OSDDownloadContent.exe")
+
+    # Match on return code
+	if ($ReturnCode -eq 0) {
+		log -message "Successfully downloaded package content with PackageID: $($HPIAPackage.PackageID)" -Type 1 -Component HPIA -LogFile $LogFile
+        write-host "Successfully downloaded package content with PackageID: $($HPIAPackage.PackageID)" -ForegroundColor green
+	}
+	else {
+		log -Message "Failed to download or driver package is missing in ConfigMgr: $($Filter)." -Type 3 -Component HPIA -LogFile $LogFile
+				
+		# Throw terminating error
+        $Errorcode = "Failed to download or driver package is missing in ConfigMgr: $($Filter)."
+        write-host "Failed to download or driver package is missing in ConfigMgr: $($Filter)." -ForegroundColor red
+        (new-object -ComObject Microsoft.SMS.TsProgressUI).CloseProgressDialog() ; (new-object -ComObject wscript.shell).Popup("$($Errorcode) ",0,'Warning',0x0 + 0x30) ; Exit 0
+        Exit 1
+	}
+
+# Set Softpaq to Softpaq01 to get an working directory. 
+($ContentPath) = $TSEnvironment.Value("softpaq01") 
+Log -Message "Setting Softpaq01: $($ContentPath)" -type 1 -LogFile $LogFile
+log -Message "Setting task sequence variable OSDDownloadDownloadPackages to a blank value" -Type 1 -Component HPIA -LogFile $LogFile
+log -Message "Setting task sequence variable OSDDownloadDestinationLocationType to a blank value" -Type 1 -Component HPIA -LogFile $LogFile
+log -Message "Setting task sequence variable OSDDownloadDestinationVariable to a blank value" -Type 1 -Component HPIA -LogFile $LogFile
+log -message "Setting task sequence variable OSDDownloadDestinationPath to a blank value" -Type 1 -Component HPIA -LogFile $LogFile
+$TSEnvironment.Value("OSDDownloadDownloadPackages") = [System.String]::Empty
+$TSEnvironment.Value("OSDDownloadDestinationLocationType") = [System.String]::Empty
+$TSEnvironment.Value("OSDDownloadDestinationVariable") = [System.String]::Empty
+$TSEnvironment.Value("OSDDownloadDestinationPath") = [System.String]::Empty
+
+ if ([string]::IsNullOrEmpty($PreCache))
+ {
+    try
+    { 
+     # Check for BIOS File.
+       if ($BIOSPwd -ne "")
+       {
+            Log -Message "Check if BIOS file exists." -type 1 -Component "HPIA" -LogFile $LogFile  
+            $BIOSPwd = Get-childitem -Path $ContentPath -Filter "*.bin"
+            $Argument = "/Operation:Analyze /Action:install /Selection:All /OfflineMode:Repository /noninteractive /Debug /SoftpaqDownloadFolder:C:\HPIA /ReportFolder:$($HPIALogFile) /BIOSPwdFile:$($BIOSPwd.Name)"              
+            Log -Message "BIOS file found, running HPIA with following install arguments: $($Argument)." -type 1 -Component "HPIA" -LogFile $LogFile  
+          
+       }
+       else {
+            $Argument = "/Operation:Analyze /Action:install /Selection:All /OfflineMode:Repository /noninteractive /Debug /SoftpaqDownloadFolder:C:\HPIA /ReportFolder:$($HPIALogFile)" 
+            Log -Message "BIOS file not found, running HPIA with following install arguments: $($Argument)." -type 1 -Component "HPIA" -LogFile $LogFile  
+ 
+       }
+
+        # Start HPIA Update process 
+        Log -Message "Starting HPIA installation." -type 1 -Component "HPIA" -LogFile $LogFile
+        $HPIAProcess = Start-Process -Wait -FilePath "HPImageAssistant.exe" -WorkingDirectory "$ContentPath" -ArgumentList "$Argument" -PassThru
+        $Handle = $HPIAProcess.Handle # Cache Info $HPIAProcess.Handle
+        $HPIAProcess.WaitForExit();
+        $HPIAProcess.ExitCode
+
+
+    If ($HPIAProcess.ExitCode -eq 0)
+    {
+        
+        Log -Message "Installations is completed with Exit code 0" -Component "HPIA" -Type 1 -logfile $LogFile
+        write-host "Installations is completed With Exit code 0" -ForegroundColor Green
+
+    }
+    If ($HPIAProcess.ExitCode -eq 3010)
+    {
+    
+        Log -Message "Install Reboot Required for SoftPaq installations are successful, and at least one requires a reboot" -Component "HPIA" -Type 1 -logfile $LogFile
+
+    }
+    elseif ($HPIAProcess.ExitCode -eq 256) 
+    {
+        Log -Message "The analysis returned no recommendation." -Component "HPIA" -Type 2 -logfile $LogFile
+        $Errorcode = "The analysis returned no recommendation.."
+        (new-object -ComObject Microsoft.SMS.TsProgressUI).CloseProgressDialog() ; (new-object -ComObject wscript.shell).Popup("$($Errorcode) ",0,'Warning',0x0 + 0x30) ; Exit 0
+        Exit 256
+    }
+    elseif ($HPIAProcess.ExitCode -eq 3020) 
+    {
+        Log -Message "Installed failed for one or more softpaqs, second pass is needed in the task sequence. Exited with $($HPIAProcess.ExitCode)" -Component "HPIA" -Type 2 -logfile $LogFile # Just run the driver step again.
+    }
+    elseif ($HPIAProcess.ExitCode -eq 4096) 
+    {
+        Log -Message "This platform is not supported!" -Type 3 -Component "HPIA" -Type 3 -logfile $LogFile
+        $Errorcode = "This platform is not supported!"
+        (new-object -ComObject Microsoft.SMS.TsProgressUI).CloseProgressDialog() ; (new-object -ComObject wscript.shell).Popup("$($Errorcode) ",0,'Warning',0x0 + 0x30) ; Exit 0
+        exit 4096
+    }
+    elseif ($HPIAProcess.ExitCode -eq 16384) {
+    
+        Log -Message "No matching configuration found on HP.com" -Type 3 -Component "HPIA" -Type 3 -logfile $LogFile
+        $Errorcode = "No matching configuration found on HP.com"
+        (new-object -ComObject Microsoft.SMS.TsProgressUI).CloseProgressDialog() ; (new-object -ComObject wscript.shell).Popup("$($Errorcode) ",0,'Warning',0x0 + 0x30) ; Exit 0
+    }
+    Else
+    {
+        Log -Message "Process exited with code $($HPIAProcess.ExitCode). Expecting the exit code to be 0." -type 1 -Component "HPIA" -LogFile $LogFile
+        $Errorcode = "Process exited with code $($HPIAProcess.ExitCode). Expecting the exit code to be 0." 
+    }
+    }
+    catch 
+    {
+        Log -Message "Failed to start the HPImageAssistant.exe: $($_.Exception.Message)" -Component "HPIA" -type 3 -Logfile $Logfile
+        Exit $($_.Exception.Message)
+    }
+
+    }
 else
 {
-    Log -Message "HPIA was not enabled to autoinstall in ConfigFile" -type 1 -LogFile $LogFile
-    
-}
-
-# Copy BIOS PWD to HPIA. 
-$BIOS = Get-ChildItem -Path "$($XMLInstallHPIA.Value)\*.bin" # Check for any Password.BIN file. 
-if ((Test-path -Path "$($XMLInstallHPIA.Value)\HPIA Base\$($BIOS.Name)") -eq $false) {
-    Write-Host "Info: BIOS File does not exists, need to copy file to HPIA."
-    Log -Message "BIOS File does not exists, need to copy file to HPIA." -type 1 -LogFile $LogFile
-    Copy-Item -Path $BIOS -Destination "$($XMLInstallHPIA.Value)\HPIA Base"
-} else {
-    Write-host "Info: BIOS File exists in HPIA or does not exits in root, no need to copy" -ForegroundColor Green
-    Log -Message "BIOS File exists in HPIA or does not exits in root, no need to copy" -type 1 -LogFile $LogFile
-}
-
-# If HPIA Installer was not updated, set false flag value
-#$NewHPIAVersion = Get-ChildItem "$($XMLInstallHPIA.Value)\HPIA Download" -Name SP*.* -ErrorAction SilentlyContinue | select -last 1
-$NewHPIAVersion = Get-ChildItem -path "$($XMLInstallHPIA.Value)\HPIA Download" -Name *.EXE -ErrorAction SilentlyContinue | sort LastWriteTime -Descending | select -First 1
-
-if($CurrentHPIAVersion -eq $NewHPIAVersion) {
-    $HPIAVersionUpdated = "False"
-    Write-host "Info: HPIA was not updated, skipping to set HPIA to copy to driverpackages." -ForegroundColor Green
-    Log -Message "HPIA was not updated, skipping to set HPIA to copy to driverpackages." -type 1 -LogFile $LogFile
-    } else {
-    $HPIAVersionUpdated = "True"
-    Write-host "Info: HPIA was updated, will update in each driverpackage" -ForegroundColor Green
-    Log -Message "HPIA was updated will update HPIA in each Driverpackage" -type 1 -LogFile $LogFile
-    }
-
-# Check if SSM is enabled in the config.
-if ($XMLSSMONLY -eq "True") {
-    $SSMONLY = "ssm"
-} else {
-        Log -Message "SSM not enabled in ConfigFile" -type 1 -LogFile $LogFile
-}
-
-# Check if Category1 is enabled in the config.
-if ($XMLCategory1 -eq "True") {
-    $Category1 = "dock"
-    Log -Message "Added dock drivers for download" -type 1 -LogFile $LogFile
-}
-else{
-        Log -Message "Not enabled to download dock in ConfigFile" -type 2 -LogFile $LogFile
-}
-
-# Check if Category2 is enabled in the config.
-if ($XMLCategory2 -eq "True") {
-    $Category2 = "driver"
-    Log -Message "Added drivers for download" -type 1 -LogFile $LogFile
-}
-else {
-        Log -Message "Not Enabled to download drivers in ConfigFile" -type 2 -LogFile $LogFile
-}
-
-# Check if Category3 is enabled in the config.
-if ($XMLCategory3 -eq "True") {
-    $Category3 = "firmware"
-    Log -Message "Added firmware for download" -type 1 -LogFile $LogFile
-}
-else {
-        Log -Message "Not Enabled to download firmware in ConfigFile" -type 1 -LogFile $LogFile
-}
-
-# Check if Category4 is enabled in the config.
-if ($XMLCategory4 -eq "True") {
-    $Category4 = "driverpack"
-    Log -Message "Added driverpacks for download" -type 1 -LogFile $LogFile
+    Log -Message "Script is running as Precache, skipping to install HPIA." -Type 2 -Component "HPIA" -logfile $LogFile
 
 }
-else {
-        Log -Message "Not Enabled to download Driverpack in ConfigFile" -type 1 -LogFile $LogFile
-}
-
-# Check if Category5 is enabled in the config.
-if ($XMLCategory5 -eq "True") {
-    $Category5 = "Bios"
-    Log -Message "Added BIOS for download" -type 1 -LogFile $LogFile
-
-}
-else {
-        Log -Message "Not Enabled to download BIOS in ConfigFile" -type 1 -LogFile $LogFile
-}
-
-# Check if Email notificaiton is enabled in the config.
-if ($XMLEnableSMTP.Enabled -eq "True") {
-    $SMTP = $($XMLEnableSMTP.SMTP)
-    $EMAIL = $($XMLEnableSMTP.Adress)
-    Log -Message "Added SMTP: $SMTP and EMAIL: $EMAIL" -type 1 -LogFile $LogFile
-} 
-else {
-        Log -Message "Email notification is not enabled in the Config" -type 1 -LogFile $LogFile
-}
-
-#Importing supported computer models CSV file
-if ($SupportedModelsCSV -match ".csv") {
-				$ModelsToImport = Import-Csv -Path $SupportedModelsCSV
-				Log -Message "Info: $($ModelsToImport.Model.Count) models found" -Type 1 -LogFile $LogFile
-                Write-host "Info: $($ModelsToImport.Model.Count) models found"
-}
-
-$HPModelsTable = foreach ($Model in $ModelsToImport) {
-    @(
-    @{ ProdCode = "$($Model.ProductCode)"; Model = "$($Model.Model)"; OSVER = $Model.WindowsVersion }
-    )
-    Log -Message "Added $($Model.ProductCode) $($Model.Model) $($Model.WindowsVersion) to download list" -type 1 -LogFile $LogFile
-    Write-host "Info: Added $($Model.ProductCode) $($Model.Model) $($Model.WindowsVersion) to download list" 
-}
-
-foreach ($Model in $HPModelsTable) {
-    
-    # Set OSVersion for 2009 to 20H2.  
-    if($Model.OSVER -eq "2009") # Want to set OSVersion to 20H2 in ConfigMgr, and must use 2009 to download Drivers from HP.
-    {
-         $OSVER = "20H2"
-         
-    }
-    else
-    {
-        $OSVER = $Model.OSVER
-    }
-
-    $GLOBAL:UpdatePackage = $False
-#==============Monitor Changes for Update Package======================================================
-
-   $filewatcher = New-Object System.IO.FileSystemWatcher
-    
-    #Mention the folder to monitor
-    $filewatcher.Path = "$($RepositoryPath)\$OSVER\$($Model.Model) $($Model.ProdCode)\Repository"
-    $filewatcher.Filter = "*.cva"
-    #include subdirectories $true/$false
-    $filewatcher.IncludeSubdirectories = $False
-    $filewatcher.EnableRaisingEvents = $true  
-### DEFINE ACTIONS AFTER AN EVENT IS DETECTED
-    $writeaction = { $path = $Event.SourceEventArgs.FullPath
-                $changeType = $Event.SourceEventArgs.ChangeType
-                $logline = "$(Get-Date), $changeType, $path"
-                Write-Host $logline #Add-content
-                Write-Host "Info: Setting Update Package to True"
-                $GLOBAL:UpdatePackage = $True
-                #Write-Host "Info: Write Action $UpdatePackage"
-              }
-              
-### DECIDE WHICH EVENTS SHOULD BE WATCHED
-    Register-ObjectEvent $filewatcher "Created" -Action $writeaction
-    Register-ObjectEvent $filewatcher "Changed" -Action $writeaction
-    Register-ObjectEvent $filewatcher "Deleted" -Action $writeaction
-    Register-ObjectEvent $filewatcher "Renamed" -Action $writeaction
-#=====================================================================================================================
-
-
-    Log -Message "----------------------------------------------------------------------------" -LogFile $LogFile
-    Log -Message "Checking if repository for model $($Model.Model) aka $($Model.ProdCode) exists" -LogFile $LogFile
-    write-host "Info: Checking if repository for model $($Model.Model) aka $($Model.ProdCode) exists"
-    if (Test-Path "$($RepositoryPath)\$OSVER\$($Model.Model) $($Model.ProdCode)\Repository") { Log -Message "Repository for model $($Model.Model) aka $($Model.ProdCode) already exists" -LogFile $LogFile }
-    if (-not (Test-Path "$($RepositoryPath)\$OSVER\$($Model.Model) $($Model.ProdCode)\Repository")) {
-        Log -Message "Repository for $($Model.Model) $($Model.ProdCode) does not exist, creating now" -LogFile $LogFile
-        Write-host "Info: Repository for $($Model.Model) $($Model.ProdCode) does not exist, creating now"
-        New-Item -ItemType Directory -Path "$($RepositoryPath)\$OSVER\$($Model.Model) $($Model.ProdCode)\Repository"
-        if (Test-Path "$($RepositoryPath)\$OSVER\$($Model.Model) $($Model.ProdCode)\Repository") {
-            Log -Message "$($Model.Model) $($Model.ProdCode) HPIA folder and repository subfolder successfully created" -LogFile $LogFile
-            Write-host "Info: $($Model.Model) $($Model.ProdCode) HPIA folder and repository subfolder successfully created" -ForegroundColor Green
-            }
-        else {
-            Log -Message "Failed to create repository subfolder!" -LogFile $LogFile -Type 3
-            Write-host "Info: Failed to create repository subfolder!" -ForegroundColor Red
-            Exit
-        }
-    }
-    if (-not (Test-Path "$($RepositoryPath)\$OSVER\$($Model.Model) $($Model.ProdCode)\Repository\.repository")) {
-        Log -Message "Repository not initialized, initializing now" -LogFile $LogFile
-        Write-host "Info: Repository not initialized, initializing now"
-        Set-Location -Path "$($RepositoryPath)\$OSVER\$($Model.Model) $($Model.ProdCode)\Repository"
-        Initialize-Repository
-        if (Test-Path "$($RepositoryPath)\$OSVER\$($Model.Model) $($Model.ProdCode)\Repository\.repository") {
-            Write-host "Info: $($Model.Model) $($Model.ProdCode) repository successfully initialized"
-            Log -Message "$($Model.Model) $($Model.ProdCode) repository successfully initialized" -LogFile $LogFile
-        }
-        else {
-            Log -Message "Failed to initialize repository for $($Model.Model) $($Model.ProdCode)" -LogFile $LogFile -Type 3
-            Write-host "Info: Failed to initialize repository for $($Model.Model) $($Model.ProdCode)" -ForegroundColor Red
-            Exit
-        }
-    }    
-    
-    Log -Message "Set location to $($Model.Model) $($Model.ProdCode) repository" -LogFile $LogFile
-    Set-Location -Path "$($RepositoryPath)\$OSVER\$($Model.Model) $($Model.ProdCode)\Repository"
-    
-    if ($XMLEnableSMTP.Enabled -eq "True") {
-        Set-RepositoryNotificationConfiguration $SMTP
-        Add-RepositorySyncFailureRecipient -to $EMAIL
-        Log -Message "Configured notification for $($Model.Model) $($Model.ProdCode) with SMTP: $SMTP and Email: $EMAIL" -LogFile $LogFile
-    }  
-    
-    Log -Message "Remove any existing repository filter for $($Model.Model) repository" -LogFile $LogFile
-    Remove-RepositoryFilter -platform $($Model.ProdCode) -yes
-    
-    Log -Message "Applying repository filter for $($Model.Model) repository" -LogFile $LogFile
-    if ($XMLCategory1 -eq "True") {
-           Add-RepositoryFilter -platform $($Model.ProdCode) -os $OS -osver $($Model.OSVER) -category $Category1
-           Log -Message "Applying repository filter to $($Model.Model) repository to download: $Category1" -type 1 -LogFile $LogFile
-
-    }
-    else {
-        Log -Message "Not applying repository filter to download $($Model.Model) for: dock" -type 1 -LogFile $LogFile
-
-    }
-    if ($XMLCategory2 -eq "True") {
-        Add-RepositoryFilter -platform $($Model.ProdCode) -os $OS -osver $($Model.OSVER) -category $Category2
-        Log -Message "Applying repository filter to $($Model.Model) repository to download: $Category2" -type 1 -LogFile $LogFile
-
-    }
-    else {
-        Log -Message "Not applying repository filter to download $($Model.Model) for: Driver" -type 1 -LogFile $LogFile
-
-    }
-    if ($XMLCategory3 -eq "True") {
-        Add-RepositoryFilter -platform $($Model.ProdCode) -os $OS -osver $($Model.OSVER) -category $Category3
-        Log -Message "Applying repository filter to $($Model.Model) repository to download: $Category3" -type 1 -LogFile $LogFile
-    }
-    else {
-        Log -Message "Not applying repository filter to download $($Model.Model) for: Firmware" -type 2 -LogFile $LogFile
-    }
-    if ($XMLCategory4 -eq "True") {
-        Add-RepositoryFilter -platform $($Model.ProdCode) -os $OS -osver $($Model.OSVER) -category $Category4
-        Log -Message "Applying repository filter to $($Model.Model) repository to download: $Category4" -type 2 -LogFile $LogFile
-
-    }
-    else {
-        Log -Message "Not applying repository filter to download $($Model.Model) for: DriverPack" -type 1 -LogFile $LogFile
-    }
-
-    if ($XMLCategory5 -eq "True") {
-        Add-RepositoryFilter -platform $($Model.ProdCode) -os $OS -osver $($Model.OSVER) -category $Category5
-        Log -Message "Applying repository filter to $($Model.Model) repository to download: $Category5" -type 2 -LogFile $LogFile
-
-    }
-    else {
-        Log -Message "Not applying repository filter to download $($Model.Model) for: BIOS" -type 1 -LogFile $LogFile
-    }
-
-    Log -Message "Invoking repository sync for $($Model.Model) $($Model.ProdCode) repository $os, $($Model.OSVER), $Category1 and $Category2 and $Category3 and $Category4" -LogFile $LogFile
-    Write-host "Info: Invoking repository sync for $($Model.Model) $($Model.ProdCode) repository $os, $($Model.OSVER), $Category1 and $Category2 and $Category3 and $Category4 and $Category5"
-    Invoke-RepositorySync
-    Set-RepositoryConfiguration -Setting OfflineCacheMode -CacheValue Enable
-    Start-Sleep -s 15
-    Set-RepositoryConfiguration -Setting OfflineCacheMode -CacheValue Enable
-
-    Log -Message "Invoking repository cleanup for $($Model.Model) $($Model.ProdCode) repository for $Category1 and $Category2 and $Category3 and $Category4 and $Category5 categories" -LogFile $LogFile
-    Write-host "Info: Invoking repository cleanup for $($Model.Model) $($Model.ProdCode) repository for $Category1 and $Category2 and $Category3 and $Category4 and $Category5 categories"
-    Invoke-RepositoryCleanup
-    Set-RepositoryConfiguration -Setting OfflineCacheMode -CacheValue Enable
-    Log -Message "Confirm HPIA files are up to date for $($Model.Model) $($Model.ProdCode)" -LogFile $LogFile 
-    Write-host "Info: Confirm HPIA files are up to date for $($Model.Model) $($Model.ProdCode)" 
-
-    $HPIARepoPath = "$($RepositoryPath)\$OSVER\$($Model.Model) $($Model.ProdCode)\HPImageAssistant.exe"
-    $HPIAExist = Get-Item $HPIARepoPath
-    if(!$HPIAExist){   
-    $HPIANotCopied = "True"
-    Write-host "HPIA does not exists in $($RepositoryPath)\$OSVER\$($Model.Model) $($Model.ProdCode)"
-    }
-
-    if (($HPIAVersionUpdated -eq "True") -or ($HpiaNotCopied -eq "True")) {
-        Write-Host "Info: Running HPIA Update"
-        Log -Message "Running HPIA Update" -type 1 -LogFile $LogFile
-        $RobocopySource = "$($XMLInstallHPIA.Value)\HPIA Base"
-        $RobocopyDest = "$($RepositoryPath)\$OSVER\$($Model.Model) $($Model.ProdCode)"
-        $RobocopyArg = '"'+$RobocopySource+'"'+' "'+$RobocopyDest+'"'+' /xc /xn /xo /fft /e /b /copyall'
-        $RobocopyCmd = "robocopy.exe"
-        Start-Process -FilePath $RobocopyCmd -ArgumentList $RobocopyArg -Wait
-    
-        } else {
-
-            Write-Host "Info: No need to update HPIA, skipping this step."
-            Log -Message "No need to update HPIA, skipping." -type 1 -LogFile $LogFile
-
-        }
-
-        Write-Host "Checking if offline folder is created"
-        $OfflinePath = "$($RepositoryPath)\$OSVER\$($Model.Model) $($Model.ProdCode)\Repository\.repository\cache\offline"
-        if(!(Test-Path $OfflinePath)){
-            Write-Host "Folder not detected, running RepositoryConfiguration again in 20 seconds" -ForegroundColor Red
-            Log -Message "Folder not detected, running RepositoryConfiguration again in 20 seconds" -type 3 -LogFile $LogFile
-            Start-Sleep -Seconds 20
-            Invoke-RepositorySync
-            Start-Sleep -Seconds 15
-            Set-RepositoryConfiguration -Setting OfflineCacheMode -CacheValue Enable
-            Start-Sleep -Seconds 10
-          }
-        if(!(Test-Path $OfflinePath)){
-            Write-Host "Offlinefolder still not detected, please run script manually again and update Distribution points"
-            Log -Message "Folder not detected, running RepositoryConfiguration again in 20 seconds" -type 3 -LogFile $LogFile
-        } 
-
-
-#==========Stop Monitoring Changes===================
-
-    Get-EventSubscriber | Unregister-Event
-
-#====================================================
-
-    
-    Import-Module $ConfigMgrModule
-    Set-location "$($SiteCode):\"
-
-    $SourcesLocation = $RobocopyDest
-    $PackageName = "HPIA-$OSVER-" + "$($Model.Model)" + " $($Model.ProdCode)" #Must be below 40 characters
-    $PackageDescription = "$OSVER-" + "$($Model.Model)" + " $($Model.ProdCode)"
-    $PackageManufacturer = "HP"
-    $PackageVersion = "$OSVER"
-    $SilentInstallCommand = ""
-    
-    $PackageExist = Get-CMPackage -Fast -Name $PackageName
-    If ([string]::IsNullOrWhiteSpace($PackageExist)){
-        #Write-Host "Does not Exist"
-        Log -Message "$PackageName does not exists in ConfigMgr" -type 2 -LogFile $LogFile
-        Log -Message "Creating $PackageName in ConfigMgr" -type 2 -LogFile $LogFile
-        Write-host "Info: $PackageName does not exists in ConfigMgr"
-        Write-host "Info: Creating $PackageName in ConfigMgr"
-        New-CMPackage -Name $PackageName -Description $PackageDescription -Manufacturer $PackageManufacturer -Version $PackageVersion -Path $SourcesLocation
-        Set-CMPackage -Name $PackageName -DistributionPriority Normal -CopyToPackageShareOnDistributionPoints $True -EnableBinaryDeltaReplication $True
-        Start-CMContentDistribution -PackageName  "$PackageName" -DistributionPointGroupName "$DPGroupName"
-
-        $MovePackage = Get-CMPackage -Fast -Name $PackageName
-        Move-CMObject -FolderPath $CMFolderPath -InputObject $MovePackage
-
-        Set-Location -Path "$($InstallPath)"
-        Write-host "Info: $PackageName is created in ConfigMgr"
-        Log -Message "$PackageName is created in ConfigMgr" -LogFile $LogFile
-    }
-    Else {
-        #Write-Host "Package Already Exist"
-        #Write-Host "Updatepackage: $GLOBAL:UpdatePackage"
-        If ($GLOBAL:UpdatePackage -eq $True){
-            Write-Host "Info: Changes was made updating ConfigMgrPkg: $PackageName" -ForegroundColor Green
-            Log -Message "Changes made Updating ConfigMgrPkg: $PackageName on DistributionPoint" -type 2 -LogFile $LogFile
-            Update-CMDistributionPoint -PackageName "$PackageName"
-        }
-        Else {
-            Write-Host "Info: No Changes was Made, not updating ConfigMgrPkg: $PackageName on DistributionPoint" -ForegroundColor Green
-            Log -Message "No Changes was Made, not updating ConfigMgrPkg: $PackageName on DistributionPoint" -type 2 -LogFile $LogFile
-
-        }
-            Set-Location -Path $($InstallPath)
-            Write-host "Info: $($Model.Model) is done, contiune with next model in the list."  -ForegroundColor Green
-            Log -Message "$($Model.Model) is done, contiune with next model in the list." -type 1 -LogFile $LogFile
-    }
-    
-}
-Set-Location -Path "$($InstallPath)"
-Write-host "Info: Repository Update Complete" -ForegroundColor Green
-Log -Message "Repository Update Complete" -LogFile $LogFile
-Log -Message "----------------------------------------------------------------------------" -LogFile $LogFile
+Log -Message "HPIA script is now completed." -Component "HPIA" -Type 1 -logfile $LogFile
