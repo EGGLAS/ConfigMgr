@@ -1,1 +1,0 @@
-HPImageAssistant.exe /Operation:Analyze /Action:install /Selection:All /OfflineMode:Repository /noninteractive /Debug  /SoftpaqDownloadFolder:C:\HPIA /ReportFolder:C:\HPIA\Logs /BIOSPwdFile:pwd1.bin
