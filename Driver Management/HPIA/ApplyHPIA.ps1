@@ -2,14 +2,16 @@
  Date: 2021-02-11
  Purpose: Download HP Drivers and apply HPIA drivers during OS Deployment or OS Upgrade.
 
- Version: 1.4
+ Version: 1.5
  Changelog: 1.0 - 2021-02-11 - Nicklas Eriksson -  Script was created. Purpose to use one script to download and install HPIA.
             1.1 - 2021-04-30 - Daniel Gråhns - added a "c" that was missing just because I wanted to be in the changelog ;P and some other stuff that was hillarious ("reboob"), popup added on error.
             1.2 - 2021-04-30 - Nicklas Eriksson & Daniel Gråhns -Added PreCache function.
             1.3 - 2021-05-04 - Nicklas Eriksson & Daniel Gråhns - Fixed Logging and Errorhandling - Fixed parameters and PreCahche (needs to be tested)
             1.4 - 2021-05-05 - Daniel Gråhns - Tested Precache. 
+            1.5 - 2021-06-14 - Nicklas Eriksson - Bug fix and added some more log entries. 
 TO-Do
  - Fallback to latest support OS?
+ - Should be able to run script in debug mode.
 
 ApplyHPIA.ps1 -Siteserver "server.domain.local" -OSVersion "20H2"  
 ApplyHPIA.ps1 -Siteserver "server.domain.local" -OSVersion "20H2" -DownloadPath "CCMCache" -BIOSPwd "Password.pwd"
@@ -18,8 +20,8 @@ ApplyHPIA.ps1 -Siteserver "server.domain.local" -OSVersion "20H2" -Precache "Pre
 NOTES 
  - Clean-up install files that are creating under C:\HPIA - Add Remove-Item -Path "C:\HPIA" in task sequence if you want to clean-up, seperate step. 
 
-Big shoutout and credit to Maurice Dualy and Nikolaj Andersen for their outstanding work for creating Modern Driver Management for making this possible. 
-Some code are borrowed from their awesome solution for making this work.
+Big shoutout and credit to Maurice Dualy and Nikolaj Andersen for their outstanding work with  Modern Driver Management for making this solution possible. 
+Some code are borrowed from their awesome solution to making this solution work.
 #>
 
 [CmdletBinding(DefaultParameterSetName = "CCMCache")]
@@ -64,6 +66,9 @@ Type: 1 = Normal, 2 = Warning (yellow), 3 = Error (red)
     $LogMessage | Out-File -Append -Encoding UTF8 -FilePath $LogFile
 }
 
+$Scriptversion = 1.5
+Log -Message "Loading script with version: $Scriptversion" -type 1 -Component "HPIA" -LogFile $LogFile
+
 
 # Construct TSEnvironment object
 try {
@@ -74,9 +79,9 @@ catch [System.Exception] {
 }
 
 # Set TS settings.
-$LogFile = $TSEnvironment.Value("_SMSTSLogPath") + "\HPIAApply.log"
+$LogFile = $TSEnvironment.Value("_SMSTSLogPath") + "\ApplyHPIA.log" # ApplyHPIA log location 
 $Softpaq = "SOFTPAQ"
-$HPIALogFile = $TSEnvironment.Value("_SMSTSLogPath") + "\HPIAInstall"
+$HPIALogFile = $TSEnvironment.Value("_SMSTSLogPath") + "\HPIAInstall" # Log location for HPIA install.
 
 # Attempt to read TSEnvironment variable AdminserviceUser
 $AdminserviceUser = $TSEnvironment.Value("AdminserviceUser")
@@ -121,18 +126,19 @@ else {
 $EncryptedPassword = ConvertTo-SecureString -String $Password -AsPlainText -Force
 $Credential = New-Object -TypeName System.Management.Automation.PSCredential -ArgumentList @($AdminserviceUser, $EncryptedPassword)
 
-
 # Variables for ConfigMgr Adminservice.        
-#$Filter = "HPIA-$OSVersion-HP ProBook 430 G5 8536"
+#$Filter = "HPIA-20H2-HP ProBook 430 G5 8536" # Only for test purpose. 
 $Filter = "HPIA-$OSversion-" + (Get-WmiObject -Class:Win32_ComputerSystem).Model + " " + (Get-WmiObject -Class:Win32_BaseBoard).Product
 $FilterPackages = "/SMS_Package?`$filter=contains(Name,'$($Filter)')"
 $AdminServiceURL = "https://{0}/AdminService/wmi" -f $SiteServer
 $AdminServiceUri = $AdminServiceURL + $FilterPackages
 
 try {
+        log -Message "Trying to access $($AdminServiceUri) with $($AdminserviceUser)" -Type 1 -Component HPIA -LogFile $LogFile				        
         $AdminServiceResponse = Invoke-RestMethod $AdminServiceUri -Method Get -Credential $Credential -ErrorAction Stop  
         $HPIAPackage = $AdminServiceResponse.value  | Select-Object Name,PackageID 
-        
+        log -Message "Name: $($HPIAPackage.Name )" -Type 1 -Component HPIA -LogFile $LogFile				
+        log -Message "PackageID: $($HPIAPackage.PackageID)" -Type 1 -Component HPIA -LogFile $LogFile				
         }
 catch [System.Security.Authentication.AuthenticationException] {
 
@@ -148,8 +154,12 @@ catch [System.Security.Authentication.AuthenticationException] {
 					
 	try {
 		# Call AdminService endpoint to retrieve package data
+        log -Message "Trying to access $($AdminServiceUri) with $($AdminserviceUser)" -Type 1 -Component HPIA -LogFile $LogFile				
+        $AdminServiceResponse = Invoke-RestMethod $AdminServiceUri -Method Get -Credential $Credential -ErrorAction Stop 
         $HPIAPackage = $AdminServiceResponse.value  | Select-Object Name,PackageID 
-        
+        log -Message "Name: $($HPIAPackage.Name )" -Type 1 -Component HPIA -LogFile $LogFile				
+        log -Message "PackageID: $($HPIAPackage.PackageID)" -Type 1 -Component HPIA -LogFile $LogFile				
+
 	}
 	catch [System.Exception] {
 		# Throw terminating error
@@ -180,7 +190,7 @@ $TSEnvironment.value("OSDDownloadDestinationVariable") = "$($Softpaq)"
 
 Log -Message "Setting OSDDownloadDownloadPackages: $($DownloadPath)" -type 1 -LogFile $LogFile
 Log -Message "Setting OSDDownloadContinueDownloadOnError: 1" -type 1 -LogFile $LogFile
-Log -Message "Setting OSDDownloadDownloadPackages: $($ContentPath)" -type 1 -LogFile $LogFile
+Log -Message "Setting OSDDownloadDownloadPackages: $($HPIAPackage.PackageID)" -type 1 -LogFile $LogFile
 Log -Message "Setting OSDDownloadDestinationVariable: $($Softpaq)" -type 1 -LogFile $LogFile
 
 
@@ -243,7 +253,7 @@ $ReturnCode = Invoke-Executable -FilePath (Join-Path -Path $env:windir -ChildPat
 
 # Set Softpaq to Softpaq01 to get an working directory. 
 ($ContentPath) = $TSEnvironment.Value("softpaq01") 
-Log -Message "Setting Softpaq01: $($ContentPath)" -type 1 -LogFile $LogFile
+Log -Message "Setting TS variable Softpaq01: $($ContentPath)" -type 1 -LogFile $LogFile
 
 log -Message "Setting task sequence variable OSDDownloadDownloadPackages to a blank value" -Type 1 -Component HPIA -LogFile $LogFile
 $TSEnvironment.Value("OSDDownloadDownloadPackages") = [System.String]::Empty
@@ -343,4 +353,4 @@ else
     Log -Message "Script is running as Precache, skipping to install HPIA." -Type 2 -Component "HPIA" -logfile $LogFile
 
 }
-Log -Message "HPIA script is now completed." -Component "HPIA" -Type 1 -logfile $LogFile
+Log -Message "HPIA script has now completed." -Component "HPIA" -Type 1 -logfile $LogFile
