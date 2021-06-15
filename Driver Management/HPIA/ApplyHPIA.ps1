@@ -3,7 +3,7 @@
  Purpose: Download HP Drivers and apply HPIA drivers during OS Deployment or OS Upgrade.
 
  Version: 1.5
- Changelog: 1.0 - 2021-02-11 - Nicklas Eriksson -  Script was created. Purpose to use one script to download and install HPIA.
+ Changelog: 1.0 - 2021-02-11 - Nicklas Eriksson -  Script was created. Purpose to replace the old script with purpose to use one script to handle downloading of drivers and install HPIA.
             1.1 - 2021-04-30 - Daniel Gråhns - added a "c" that was missing just because I wanted to be in the changelog ;P and some other stuff that was hillarious ("reboob"), popup added on error.
             1.2 - 2021-04-30 - Nicklas Eriksson & Daniel Gråhns -Added PreCache function.
             1.3 - 2021-05-04 - Nicklas Eriksson & Daniel Gråhns - Fixed Logging and Errorhandling - Fixed parameters and PreCahche (needs to be tested)
