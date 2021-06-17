@@ -8,7 +8,7 @@
             1.2 - 2021-04-30 - Nicklas Eriksson & Daniel Gråhns -Added PreCache function.
             1.3 - 2021-05-04 - Nicklas Eriksson & Daniel Gråhns - Fixed Logging and Errorhandling - Fixed parameters and PreCahche (needs to be tested)
             1.4 - 2021-05-05 - Daniel Gråhns - Tested Precache. 
-            1.5 - 2021-06-14 - Nicklas Eriksson - Bug fix and added some more log entries. 
+            1.5 - 2021-06-14 - Nicklas Eriksson - Bug fix and added more logging. 
 TO-Do
  - Fallback to latest support OS?
  - Should be able to run script in debug mode.
@@ -67,8 +67,8 @@ Type: 1 = Normal, 2 = Warning (yellow), 3 = Error (red)
 }
 
 $Scriptversion = 1.5
+Log -Message "HPIA is about to start..." -type 1 -Component "HPIA" -LogFile $LogFile
 Log -Message "Loading script with version: $Scriptversion" -type 1 -Component "HPIA" -LogFile $LogFile
-
 
 # Construct TSEnvironment object
 try {
@@ -87,13 +87,12 @@ $HPIALogFile = $TSEnvironment.Value("_SMSTSLogPath") + "\HPIAInstall" # Log loca
 $AdminserviceUser = $TSEnvironment.Value("AdminserviceUser")
 if (-not ([string]::IsNullOrEmpty($AdminserviceUser))) {
                
-        Log -Message "Successfully read service account user name from TS environment variable 'Adminserviceuser': $($AdminserviceUser)" -Type 1 -Component "HPIA" -LogFile $LogFile
+        Log -Message "Successfully read service account user name from TS environment variable 'Adminserviceuser': ********" -Type 1 -Component "HPIA" -LogFile $LogFile
     }
 else {
         Log -Message "Required service account user name could not be determined from TS environment variable 'Adminserviceuser'" -type 3 -Component "HPIA" -LogFile $LogFile
         $Errorcode = "Required service account user name could not be determined from TS environment variable"
         (new-object -ComObject Microsoft.SMS.TsProgressUI).CloseProgressDialog() ; (new-object -ComObject wscript.shell).Popup("$($Errorcode) ",0,'Warning',0x0 + 0x30) ; Exit 0
-        # Throw terminating error
     }
 
 # Validate correct value have been either set as a TS environment variable or passed as parameter input for service account password used to authenticate against the AdminService
@@ -113,7 +112,6 @@ if ([string]::IsNullOrEmpty($Password)) {
                         $Errorcode = "Required service account password could not be determined from TS environment variable"
                         (new-object -ComObject Microsoft.SMS.TsProgressUI).CloseProgressDialog() ; (new-object -ComObject wscript.shell).Popup("$($Errorcode) ",0,'Warning',0x0 + 0x30) ; Exit 0
 
-						# Throw terminating error
 					}
 				}
 			}
@@ -133,15 +131,21 @@ $FilterPackages = "/SMS_Package?`$filter=contains(Name,'$($Filter)')"
 $AdminServiceURL = "https://{0}/AdminService/wmi" -f $SiteServer
 $AdminServiceUri = $AdminServiceURL + $FilterPackages
 
+log -Message "Computermodel: $((Get-WmiObject -Class:Win32_ComputerSystem).Model)" -Type 1 -Component HPIA -LogFile $LogFile				        
+log -Message "Baseboard: $((Get-WmiObject -Class:Win32_BaseBoard).Product)" -Type 1 -Component HPIA -LogFile $LogFile
+log -Message "OSVersion: $($OSVersion)" -Type 1 -Component HPIA -LogFile $LogFile				        
+log -Message "Will use this filter to attempt to get the correct driver package from adminservice: $($Filter)" -Type 1 -Component HPIA -LogFile $LogFile				        
+
 try {
-        log -Message "Trying to access $($AdminServiceUri) with $($AdminserviceUser)" -Type 1 -Component HPIA -LogFile $LogFile				        
-        $AdminServiceResponse = Invoke-RestMethod $AdminServiceUri -Method Get -Credential $Credential -ErrorAction Stop  
+        log -Message "Trying to access adminservice with the following URL: $($AdminServiceUri)" -Type 1 -Component HPIA -LogFile $LogFile				        
+        $AdminServiceResponse = Invoke-RestMethod $AdminServiceUri -Method Get -Credential $Credential -ErrorAction Stop
+        log -Message "Found the correct driver package from adminservice: $($AdminServiceResponse.count)" -Type 1 -Component HPIA -LogFile $LogFile
+        log -Message "Grabbing Name and PackageID from driverpackage" -Type 1 -Component HPIA -LogFile $LogFile				  
         $HPIAPackage = $AdminServiceResponse.value  | Select-Object Name,PackageID 
-        log -Message "Name: $($HPIAPackage.Name )" -Type 1 -Component HPIA -LogFile $LogFile				
+        log -Message "Name: $($HPIAPackage.Name)" -Type 1 -Component HPIA -LogFile $LogFile				
         log -Message "PackageID: $($HPIAPackage.PackageID)" -Type 1 -Component HPIA -LogFile $LogFile				
         }
 catch [System.Security.Authentication.AuthenticationException] {
-
 					
 	# Attempt to ignore self-signed certificate binding for AdminService
 	# Convert encoded base64 string for ignore self-signed certificate validation functionality, certification is genereic and no need for change. 
@@ -154,30 +158,27 @@ catch [System.Security.Authentication.AuthenticationException] {
 					
 	try {
 		# Call AdminService endpoint to retrieve package data
-        log -Message "Trying to access $($AdminServiceUri) with $($AdminserviceUser)" -Type 1 -Component HPIA -LogFile $LogFile				
+        log -Message "Trying to access adminservice with following URL: $($AdminServiceUri)" -Type 1 -Component HPIA -LogFile $LogFile				
         $AdminServiceResponse = Invoke-RestMethod $AdminServiceUri -Method Get -Credential $Credential -ErrorAction Stop 
         $HPIAPackage = $AdminServiceResponse.value  | Select-Object Name,PackageID 
-        log -Message "Name: $($HPIAPackage.Name )" -Type 1 -Component HPIA -LogFile $LogFile				
+        log -Message "Name: $($HPIAPackage.Name)" -Type 1 -Component HPIA -LogFile $LogFile				
         log -Message "PackageID: $($HPIAPackage.PackageID)" -Type 1 -Component HPIA -LogFile $LogFile				
 
 	}
 	catch [System.Exception] {
-		# Throw terminating error
+		# Throw error code
 		log -Message "Failed to retrive driver package from ConfigMgr Adminservice for $($Filter)." -Type 3 -Component HPIA -LogFile $LogFile				
-		# Throw terminating error
         $Errorcode = "Failed to retrive driver package from ConfigMgr Adminservice for $($Filter)."
         (new-object -ComObject Microsoft.SMS.TsProgressUI).CloseProgressDialog() ; (new-object -ComObject wscript.shell).Popup("$($Errorcode) ",0,'Warning',0x0 + 0x30) ; Exit 0
         Throw
 	}
 }
 catch {
-	# Throw terminating error
+	# Throw error code
 		log -Message "Failed to retrive driver package from ConfigMgr Adminservice for $($Filter)." -Type 3 -Component HPIA -LogFile $LogFile				
-		# Throw terminating error
         $Errorcode = "Failed to retrive driver package from ConfigMgr Adminservice for $($Filter)."
         (new-object -ComObject Microsoft.SMS.TsProgressUI).CloseProgressDialog() ; (new-object -ComObject wscript.shell).Popup("$($Errorcode) ",0,'Warning',0x0 + 0x30) ; Exit 0
         Throw
-
 }
 
 # Should have a check to see $HPIAPackage.PackageID contain something.
@@ -188,11 +189,10 @@ $TSEnvironment.value("OSDDownloadContinueDownloadOnError") = "1"
 $TSEnvironment.value("OSDDownloadDownloadPackages") = "$($HPIAPackage.PackageID)"
 $TSEnvironment.value("OSDDownloadDestinationVariable") = "$($Softpaq)"
 
-Log -Message "Setting OSDDownloadDownloadPackages: $($DownloadPath)" -type 1 -LogFile $LogFile
-Log -Message "Setting OSDDownloadContinueDownloadOnError: 1" -type 1 -LogFile $LogFile
-Log -Message "Setting OSDDownloadDownloadPackages: $($HPIAPackage.PackageID)" -type 1 -LogFile $LogFile
-Log -Message "Setting OSDDownloadDestinationVariable: $($Softpaq)" -type 1 -LogFile $LogFile
-
+Log -Message "Setting OSDDownloadDownloadPackages: $($DownloadPath)" -type 1 -LogFile $LogFile -Component HPIA
+Log -Message "Setting OSDDownloadContinueDownloadOnError: 1" -type 1 -LogFile $LogFile -Component HPIA
+Log -Message "Setting OSDDownloadDownloadPackages: $($HPIAPackage.PackageID)" -type 1 -LogFile $LogFile -Component HPIA
+Log -Message "Setting OSDDownloadDestinationVariable: $($Softpaq)" -type 1 -LogFile $LogFile -Component HPIA
 
 
 function Invoke-Executable {
@@ -232,8 +232,8 @@ function Invoke-Executable {
 		return $Invocation.ExitCode
 	}
 
-# Download Drivers
-log -message " - Starting package content download process, this might take some time" -Type 1 -Component HPIA -LogFile $LogFile
+# Download Drivers with OSDDownloadContent
+log -message "Starting package content download process, this might take some time" -Type 1 -Component HPIA -LogFile $LogFile
 $ReturnCode = Invoke-Executable -FilePath (Join-Path -Path $env:windir -ChildPath "CCM\OSDDownloadContent.exe")
 
     # Match on return code
@@ -253,8 +253,9 @@ $ReturnCode = Invoke-Executable -FilePath (Join-Path -Path $env:windir -ChildPat
 
 # Set Softpaq to Softpaq01 to get an working directory. 
 ($ContentPath) = $TSEnvironment.Value("softpaq01") 
-Log -Message "Setting TS variable Softpaq01: $($ContentPath)" -type 1 -LogFile $LogFile
+Log -Message "Setting TS variable Softpaq01: $($ContentPath)" -type 1 -LogFile $LogFile -Component HPIA
 
+log -Message "Starting to reset the task sequence variable that were used to download drivers" -Type 1 -Component HPIA -LogFile $LogFile
 log -Message "Setting task sequence variable OSDDownloadDownloadPackages to a blank value" -Type 1 -Component HPIA -LogFile $LogFile
 $TSEnvironment.Value("OSDDownloadDownloadPackages") = [System.String]::Empty
 		
@@ -280,12 +281,12 @@ $TSEnvironment.Value("OSDDownloadDestinationPath") = [System.String]::Empty
             Log -Message "Check if BIOS file exists." -type 1 -Component "HPIA" -LogFile $LogFile  
             $BIOSPwd = Get-childitem -Path $ContentPath -Filter "*.bin"
             $Argument = "/Operation:Analyze /Action:install /Selection:All /OfflineMode:Repository /noninteractive /Debug /SoftpaqDownloadFolder:C:\HPIA /ReportFolder:$($HPIALogFile) /BIOSPwdFile:$($BIOSPwd)"              
-            Log -Message "BIOS file found, running HPIA with following install arguments: $($Argument)." -type 1 -Component "HPIA" -LogFile $LogFile  
+            Log -Message "BIOS file found, will start HPIA with following install arguments: $($Argument)." -type 1 -Component "HPIA" -LogFile $LogFile  
           
        }
        else {
             $Argument = "/Operation:Analyze /Action:install /Selection:All /OfflineMode:Repository /noninteractive /Debug /SoftpaqDownloadFolder:C:\HPIA /ReportFolder:$($HPIALogFile)" 
-            Log -Message "BIOS file not found, running HPIA with following install arguments: $($Argument)." -type 1 -Component "HPIA" -LogFile $LogFile  
+            Log -Message "BIOS file not found, will start HPIA with following install arguments: $($Argument)." -type 1 -Component "HPIA" -LogFile $LogFile  
  
        }
 
@@ -297,18 +298,18 @@ $TSEnvironment.Value("OSDDownloadDestinationPath") = [System.String]::Empty
         $HPIAProcess.ExitCode
 
 
-    If ($HPIAProcess.ExitCode -eq 0)
-    {
-        
-        Log -Message "Installations is completed" -Component "HPIA" -Type 1 -logfile $LogFile
-        write-host "Installations is completed With Exit 0" -ForegroundColor Green
+        If ($HPIAProcess.ExitCode -eq 0)
+        {
+            
+            Log -Message "Installations is completed" -Component "HPIA" -Type 1 -logfile $LogFile
+            write-host "Installations is completed With Exit 0" -ForegroundColor Green
 
-    }
+        }
 
         If ($HPIAProcess.ExitCode -eq 3010)
         {
         
-            Log -Message "Install Reboot Required � SoftPaq installations are successful, and at least one requires a reboot" -Component "HPIA" -Type 1 -logfile $LogFile
+            Log -Message "Install Reboot Required, SoftPaq installations are successful, and at least one requires a reboot" -Component "HPIA" -Type 1 -logfile $LogFile
 
         }
         elseif ($HPIAProcess.ExitCode -eq 256) 
@@ -347,10 +348,11 @@ $TSEnvironment.Value("OSDDownloadDestinationPath") = [System.String]::Empty
         Exit $($_.Exception.Message)
     }
 
-    }
-else
-{
+}
+
+else {
     Log -Message "Script is running as Precache, skipping to install HPIA." -Type 2 -Component "HPIA" -logfile $LogFile
 
 }
-Log -Message "HPIA script has now completed." -Component "HPIA" -Type 1 -logfile $LogFile
+
+Log -Message "HPIA process is now completed and the following package has been installed to the computer: $($HPIAPackage.Name)" -Component "HPIA" -Type 1 -logfile $LogFile
