@@ -18,7 +18,7 @@ ApplyHPIA.ps1 -Siteserver "server.domain.local" -OSVersion "20H2" -DownloadPath 
 ApplyHPIA.ps1 -Siteserver "server.domain.local" -OSVersion "20H2" -Precache "PreCache"
 
 NOTES 
- - Clean-up install files that are creating under C:\HPIA - Add Remove-Item -Path "C:\HPIA" in task sequence if you want to clean-up, seperate step. 
+ - Clean-up install files that are creating under C:\HPIA - Add Remove-Item -Path "C:\HPIA" in task sequence if you want to clean-up, run as seperate step in the task sequence. 
 
 Big shoutout and credit to Maurice Dualy and Nikolaj Andersen for their outstanding work with  Modern Driver Management for making this solution possible. 
 Some code are borrowed from their awesome solution to making this solution work.
