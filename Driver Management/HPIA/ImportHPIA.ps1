@@ -136,7 +136,7 @@ else
 
 }
 
-# Check if HPIA Installer was updated and create download folder for HPIA.
+# Check if HPIA Installer was updated and create download folder for HPIA. With this folder we control if any new versions of HPIA is downloaded.
 if ((Test-path -Path "$($XMLInstallHPIA.Value)\HPIA Download") -eq $false)
 {
     Log -Message "HPIA Download folder does not exists, creating HPIA Download folder" -type 1 -LogFile $LogFile
@@ -144,7 +144,7 @@ if ((Test-path -Path "$($XMLInstallHPIA.Value)\HPIA Download") -eq $false)
     Write-host "Info: Creating HPIA Download folder" -ForegroundColor Green
     New-Item -ItemType Directory -Path "$($XMLInstallHPIA.Value)\HPIA Download"
     New-Item -ItemType File -Path "$($XMLInstallHPIA.Value)\HPIA Download\Dont Delete the latest SP-file.txt"
-    Write-host "Info: Creating file Dont Delete the latest SP-file.txt" -ForegroundColor Green
+    Write-host "Info: Creating file, dont delete the latest SP-file.txt" -ForegroundColor Green
 
 }
 else
@@ -179,7 +179,8 @@ if ((Test-path -Path "$($XMLInstallHPIA.Value)\HPIA Base\$($BIOS.Name)") -eq $fa
     Write-Host "Info: BIOS File does not exists, need to copy file to HPIA"
     Log -Message "BIOS File does not exists, need to copy file to HPIA" -type 1 -LogFile $LogFile
     Copy-Item -Path $BIOS -Destination "$($XMLInstallHPIA.Value)\HPIA Base"
-} else {
+} 
+else {
     Write-host "Info: BIOS File exists in HPIA or does not exits in root, no need to copy"
     Log -Message "BIOS File exists in HPIA or does not exits in root, no need to copy" -type 1 -LogFile $LogFile
 }
@@ -310,12 +311,15 @@ foreach ($Model in $HPModelsTable) {
     $GLOBAL:UpdatePackage = $False
 #==============Monitor Changes for Update Package======================================================
 
+Log -Message "----------------------------------------------------------------------------" -LogFile $LogFile
+Write-host "----------------------------------------------------------------------------"
+
 $FileWatchCheck = "$($RepositoryPath)\$OSVER\$($Model.Model) $($Model.ProdCode)\Repository"
 
 if (Test-path $FileWatchCheck)
 {
-    write-host "Info: $($Model.Model) exists and monitoring is needed to see if any softpaqs change in the repository during the synchronization"
-    Log -Message "$($Model.Model) exists and monitoring is needed to see if any softpaqs change in the repository during the synchronization" -Type 1 -Component FileWatch -LogFile $LogFile
+    write-host "Info: $($Model.Model) exists, monitoring is needed to see if any softpaqs changes in the repository during the synchronization"
+    Log -Message "$($Model.Model) exists, monitoring is needed to see if any softpaqs changes in the repository during the synchronization" -Type 1 -Component FileWatch -LogFile $LogFile
 
     $filewatcher = New-Object System.IO.FileSystemWatcher
     
@@ -329,8 +333,10 @@ if (Test-path $FileWatchCheck)
     $writeaction = { $path = $Event.SourceEventArgs.FullPath
                 $changeType = $Event.SourceEventArgs.ChangeType
                 $logline = "$(Get-Date), $changeType, $path"
-                Write-Host $logline #Add-content
+                Write-Host "Info: $logline" #Add-content
                 Write-Host "Info: Setting Update Package to True, need to update package on $DPGroupName when sync is done"
+                Log -Message "$logline" -Type 1 -Component FileWatch -LogFile $LogFile
+                Log -Message "Setting Update Package to True, need to update package on $DPGroupName when synchronization is done" -Type 1 -Component FileWatch -LogFile $LogFile
                 $GLOBAL:UpdatePackage = $True
                 #Write-Host "Info: Write Action $UpdatePackage"
               }
@@ -349,7 +355,6 @@ else
 }
 #=====================================================================================================================
 
-    Log -Message "----------------------------------------------------------------------------" -LogFile $LogFile
     Log -Message "Checking if repository for model $($Model.Model) aka $($Model.ProdCode) exists" -LogFile $LogFile
     write-host "Info: Checking if repository for model $($Model.Model) aka $($Model.ProdCode) exists"
     if (Test-Path "$($RepositoryPath)\$OSVER\$($Model.Model) $($Model.ProdCode)\Repository") { Log -Message "Repository for model $($Model.Model) aka $($Model.ProdCode) already exists" -LogFile $LogFile }
@@ -469,27 +474,28 @@ else
         $RobocopyCmd = "robocopy.exe"
         Start-Process -FilePath $RobocopyCmd -ArgumentList $RobocopyArg -Wait
     
-        } else {
+        } 
+    else {
 
-            Write-Host "Info: No need to update HPIA, skipping this step."
-            Log -Message "No need to update HPIA, skipping." -type 1 -LogFile $LogFile
+        Write-Host "Info: No need to update HPIA, skipping this step."
+        Log -Message "No need to update HPIA, skipping." -type 1 -LogFile $LogFile
 
         }
 
-        # Checking if offline folder is created.
-        $OfflinePath = "$($RepositoryPath)\$OSVER\$($Model.Model) $($Model.ProdCode)\Repository\.repository\cache\offline"
-        if(!(Test-Path $OfflinePath)){
-            Write-Host "Info: Folder not detected, running RepositoryConfiguration again in 20 seconds" -ForegroundColor Red
-            Log -Message "Folder not detected, running RepositoryConfiguration again in 20 seconds" -type 2 -LogFile $LogFile
-            Start-Sleep -Seconds 20
-            Invoke-RepositorySync -Quiet
-            Start-Sleep -Seconds 15
-            Set-RepositoryConfiguration -Setting OfflineCacheMode -CacheValue Enable
-            Start-Sleep -Seconds 10
-          }
-        if(!(Test-Path $OfflinePath)){
-            Write-Host "Offlinefolder still not detected, please run script manually again and update Distribution points"
-            Log -Message "Offlinefolder still not detected, please run script manually again and update Distribution points" -type 3 -LogFile $LogFile
+    # Checking if offline folder is created.
+    $OfflinePath = "$($RepositoryPath)\$OSVER\$($Model.Model) $($Model.ProdCode)\Repository\.repository\cache\offline"
+    if(!(Test-Path $OfflinePath)){
+        Write-Host "Info: Folder not detected, running RepositoryConfiguration again in 20 seconds" -ForegroundColor Red
+        Log -Message "Folder not detected, running RepositoryConfiguration again in 20 seconds" -type 2 -LogFile $LogFile
+        Start-Sleep -Seconds 20
+        Invoke-RepositorySync -Quiet
+        Start-Sleep -Seconds 15
+        Set-RepositoryConfiguration -Setting OfflineCacheMode -CacheValue Enable
+        Start-Sleep -Seconds 10
+        }
+    if(!(Test-Path $OfflinePath)){
+        Write-Host "Offlinefolder still not detected, please run script manually again and update Distribution points"
+        Log -Message "Offlinefolder still not detected, please run script manually again and update Distribution points" -type 3 -LogFile $LogFile
         } 
 
 
@@ -499,7 +505,7 @@ else
 
 #====================================================
 
-    
+# ConfigMgr part start here    
     Import-Module $ConfigMgrModule
     Set-location "$($SiteCode):\"
     if ((Test-path $CMfolderPath) -eq $false)
@@ -509,13 +515,14 @@ else
         Log -Message "$CMFolderPath was successfully created in ConfigMgr" -type 2 -LogFile $LogFile
     }
 
-    $SourcesLocation = $RobocopyDest
-    $PackageName = "HPIA-$OSVER-" + "$($Model.Model)" + " $($Model.ProdCode)" #Must be below 40 characters
+    $SourcesLocation = $RobocopyDest # Set Source location
+    $PackageName = "HPIA-$OSVER-" + "$($Model.Model)" + " $($Model.ProdCode)" #Must be below 40 characters, hardcoded variable, will be used inside the ApplyHPIA.ps1 script, Please dont change this.
     $PackageDescription = "$OSVER-" + "$($Model.Model)" + " $($Model.ProdCode)"
-    $PackageManufacturer = "HP"
+    $PackageManufacturer = "HP" # hardcoded variable, will be used inside the ApplyHPIA.ps1 script, Please dont change this.
     $PackageVersion = "$OSVER"
     $SilentInstallCommand = ""
     
+    # Check if package exists in ConfigMgr, if not it will be created.
     $PackageExist = Get-CMPackage -Fast -Name $PackageName
     If ([string]::IsNullOrWhiteSpace($PackageExist)){
         #Write-Host "Does not Exist"
@@ -525,18 +532,18 @@ else
         Write-host "Info: Creating $PackageName in ConfigMgr"
         New-CMPackage -Name $PackageName -Description $PackageDescription -Manufacturer $PackageManufacturer -Version $PackageVersion -Path $SourcesLocation
         Set-CMPackage -Name $PackageName -DistributionPriority Normal -CopyToPackageShareOnDistributionPoints $True -EnableBinaryDeltaReplication $True
-        Log -Message "$PackageName is created in ConfigMgr" -LogFile $LogFile
+        Log -Message "$PackageName is created in ConfigMgr" -LogFile $LogFile        
         Start-CMContentDistribution -PackageName  "$PackageName" -DistributionPointGroupName "$DPGroupName"
         Log -Message "Starting to send out $PackageName to $DPGroupName" -type 1 -LogFile $LogFile -Component ConfigMgr
-        $MovePackage = Get-CMPackage -Fast -Name $PackageName
+        
+        $MovePackage = Get-CMPackage -Fast -Name $PackageName        
         Move-CMObject -FolderPath $CMFolderPath -InputObject $MovePackage
         Log -Message "Moving ConfigMgr package to $CMFolderPath" -LogFile $LogFile -Component ConfigMgr
+        
         Set-Location -Path "$($InstallPath)"
         Write-host "Info: $PackageName is created in ConfigMgr and distributed to $DPGroupName"
     }
     Else {
-        #Write-Host "Package Already Exist"
-        #Write-Host "Updatepackage: $GLOBAL:UpdatePackage"
         If ($GLOBAL:UpdatePackage -eq $True){
             Write-Host "Info: Changes was made when running RepositorySync, updating ConfigMgrPkg: $PackageName" -ForegroundColor Green
             Log -Message "Changes made Updating ConfigMgrPkg: $PackageName on DistributionPoint" -type 2 -Component ConfigMgr -LogFile $LogFile
@@ -548,7 +555,7 @@ else
 
         }
             Set-Location -Path $($InstallPath)
-            Write-host "Info: $($Model.Model) is done, contiune with next model in the list."  -ForegroundColor Green
+            Write-host "Info: $($Model.Model) is done, continue with next model in the list."  -ForegroundColor Green
             Log -Message "$($Model.Model) is done, continue with next model in the list." -type 1 -LogFile $LogFile
     }
     
