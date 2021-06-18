@@ -256,20 +256,16 @@ $ReturnCode = Invoke-Executable -FilePath (Join-Path -Path $env:windir -ChildPat
 Log -Message "Setting TS variable Softpaq01: $($ContentPath)" -type 1 -LogFile $LogFile -Component HPIA
 
 log -Message "Starting to reset the task sequence variable that were used to download drivers" -Type 1 -Component HPIA -LogFile $LogFile
-log -Message "Setting task sequence variable OSDDownloadDownloadPackages to a blank value" -Type 1 -Component HPIA -LogFile $LogFile
-$TSEnvironment.Value("OSDDownloadDownloadPackages") = [System.String]::Empty
-		
-# Set OSDDownloadDestinationLocationType
-log -Message "Setting task sequence variable OSDDownloadDestinationLocationType to a blank value" -Type 1 -Component HPIA -LogFile $LogFile
+$TSEnvironment.Value("OSDDownloadDownloadPackages") = [System.String]::Empty	
 $TSEnvironment.Value("OSDDownloadDestinationLocationType") = [System.String]::Empty
-		
-# Set OSDDownloadDestinationVariable
-log -Message "Setting task sequence variable OSDDownloadDestinationVariable to a blank value" -Type 1 -Component HPIA -LogFile $LogFile
 $TSEnvironment.Value("OSDDownloadDestinationVariable") = [System.String]::Empty
-		
-# Set OSDDownloadDestinationPath
-log -message "Setting task sequence variable OSDDownloadDestinationPath to a blank value" -Type 1 -Component HPIA -LogFile $LogFile
 $TSEnvironment.Value("OSDDownloadDestinationPath") = [System.String]::Empty
+
+log -Message "Setting task sequence variable OSDDownloadDownloadPackages to a blank value" -Type 1 -Component HPIA -LogFile $LogFile
+log -Message "Setting task sequence variable OSDDownloadDestinationLocationType to a blank value" -Type 1 -Component HPIA -LogFile $LogFile
+log -Message "Setting task sequence variable OSDDownloadDestinationVariable to a blank value" -Type 1 -Component HPIA -LogFile $LogFile
+log -message "Setting task sequence variable OSDDownloadDestinationPath to a blank value" -Type 1 -Component HPIA -LogFile $LogFile
+
 
  if ([string]::IsNullOrEmpty($PreCache))
  {
