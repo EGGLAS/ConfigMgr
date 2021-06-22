@@ -1,4 +1,4 @@
-<# Author: Daniel GrÃ¥hns, Nicklas Eriksson
+<# Author: Daniel Gråhns, Nicklas Eriksson
  Date: 2021-02-11
  Purpose: Download HP Drivers to a repository and apply drivers with ConfigMgr adminservice and a custom script in the taskSequence. Check out ApplyHPIA.ps1 how to apply the drivers during oSD or IPU.
 
@@ -7,12 +7,12 @@
  Version: 1.7
  Changelog: 1.0 - 2021-02-11 - Nicklas Eriksson -  Script Edited and fixed Daniels crappy hack and slash code :)
             1.1 - 2021-02-18 - Nicklas Eriksson - Added HPIA to download to HPIA Download instead to Root Directory, Added BIOSPwd should be copy to HPIA so BIOS upgrades can be run during OSD. 
-            1.2 - 2021-04-14 - Daniel GrÃ¥hns - Added check if Offline folder is created
+            1.2 - 2021-04-14 - Daniel Gråhns - Added check if Offline folder is created
             1.3 - 2021-04-27 - Nicklas Eriksson - Completed the function so the script also downloaded BIOS updates during sync.
-            1.4 - 2021-05-21 - Nicklas Eriksson & Daniel GrÃ¥hns - Changed the logic for how to check if the latest HPIA is downloaded or not since HP changed the how the set the name for HPIA.
+            1.4 - 2021-05-21 - Nicklas Eriksson & Daniel Gråhns - Changed the logic for how to check if the latest HPIA is downloaded or not since HP changed the how the set the name for HPIA.
             1.5 - 2021-06-10 - Nicklas Eriksson - Added check to see that folder path exists in ConfigMgr otherwise creat the folder path.
             1.6 - 2021-06-17 - Nicklas Eriksson - Added -Quiet to Invoke-RepositorySync, added max log size so the log file will rollover.
-            1.7 - 2021-06-18 - Nicklas Eriksson & Daniel GrÃ¥hns - Added if it's the first time the model is running skip filewatch.
+            1.7 - 2021-06-18 - Nicklas Eriksson & Daniel Gråhns - Added if it's the first time the model is running skip filewatch.
  TO-Do
  - Maybe add support for Software.
  - Add some sort of countdown on how many models that are remaning and maybe check how long time script took to run.
@@ -126,30 +126,33 @@ if ($InstallHPCML -eq "True")
         # make sure Package NuGet is up to date 
         Install-Module -Name PowerShellGet -Force # install the latest version of PowerSHellGet module
         Install-Module -Name HPCMSL -Force -AcceptLicense 
-        Log -Message "HPCML was successfully updated" -type 1 -LogFile $LogFile
+        Log -Message "HPCML was successfully updated" -type 1 -LogFile $LogFile -Component HPIA
         Write-host "Info: HPCML was successfully updated"
 
 }
 else
 {
-    Log -Message "HPCML was not enbabled to autoinstall from Powershell Gallery in ConfigFile" -type 1 -LogFile $LogFile
+    Log -Message "HPCML was not enbabled to autoinstall from Powershell Gallery in ConfigFile" -type 1 -LogFile $LogFile -Component HPIA
 
 }
 
 # Check if HPIA Installer was updated and create download folder for HPIA. With this folder we control if any new versions of HPIA is downloaded.
 if ((Test-path -Path "$($XMLInstallHPIA.Value)\HPIA Download") -eq $false)
 {
-    Log -Message "HPIA Download folder does not exists, creating HPIA Download folder" -type 1 -LogFile $LogFile
+    Log -Message "HPIA Download folder does not exists" -type 1 -LogFile $LogFile -Component HPIA
+    Log -Message "Creating HPIA Download folder" -type 1 -LogFile $LogFile -Component HPIA
+
     Write-host "Info: HPIA Download folder does not exists"
     Write-host "Info: Creating HPIA Download folder" -ForegroundColor Green
-    New-Item -ItemType Directory -Path "$($XMLInstallHPIA.Value)\HPIA Download"
-    New-Item -ItemType File -Path "$($XMLInstallHPIA.Value)\HPIA Download\Dont Delete the latest SP-file.txt"
+    New-Item -ItemType Directory -Path "$($XMLInstallHPIA.Value)\HPIA Download" -ErrorAction Stop
+    New-Item -ItemType File -Path "$($XMLInstallHPIA.Value)\HPIA Download\Dont Delete the latest SP-file.txt" -ErrorAction Stop
     Write-host "Info: Creating file, dont delete the latest SP-file.txt" -ForegroundColor Green
+    Log -Message "Creating file, dont delete the latest SP-file.txt" -type 1 -LogFile $LogFile -Component HPIA
 
 }
 else
 {
-    Log -Message "HPIA Download folder exists, no need to create folder" -type 1 -LogFile $LogFile
+    Log -Message "HPIA Download folder exists, no need to create folder" -type 1 -LogFile $LogFile -Component HPIA
     Write-host "Info: HPIA Download folder exists, no need to create folder"
 }
 
@@ -158,12 +161,12 @@ $CurrentHPIAVersion = Get-ChildItem -path "$($XMLInstallHPIA.Value)\HPIA Downloa
 # CHeck if HPIA should autoupdate from HP if's specified in the config.
 if ($XMLInstallHPIA.Enabled -eq "True")
 {
-        Log -Message "HPIA was enbabled to autoinstall in ConfigFile, starting to autoupdate HPIA" -type 1 -LogFile $LogFile
+        Log -Message "HPIA was enbabled to autoinstall in ConfigFile, starting to autoupdate HPIA" -type 1 -LogFile $LogFile -Component HPIA
         Write-host "Info: HPIA was enbabled to autoinstall in ConfigFile, starting to autoupdate HPIA"
         Set-location -Path "$($XMLInstallHPIA.Value)\HPIA Download"
         Install-HPImageAssistant -Extract -DestinationPath "$($XMLInstallHPIA.Value)\HPIA Base"
         Set-Location -path $InstallPath
-        Log -Message "HPIA was successfully updated in $($XMLInstallHPIA.Value)\HPIA Base" -type 1 -LogFile $LogFile
+        Log -Message "HPIA was successfully updated in $($XMLInstallHPIA.Value)\HPIA Base" -type 1 -LogFile $LogFile -Component HPIA
         Write-host "Info: HPIA was successfully updated in $($XMLInstallHPIA.Value)\HPIA Base"
         
 }
@@ -177,12 +180,12 @@ else
 $BIOS = Get-ChildItem -Path "$($XMLInstallHPIA.Value)\*.bin" # Check for any Password.BIN file. 
 if ((Test-path -Path "$($XMLInstallHPIA.Value)\HPIA Base\$($BIOS.Name)") -eq $false) {
     Write-Host "Info: BIOS File does not exists, need to copy file to HPIA"
-    Log -Message "BIOS File does not exists, need to copy file to HPIA" -type 1 -LogFile $LogFile
+    Log -Message "BIOS File does not exists, need to copy file to HPIA" -type 1 -LogFile $LogFile -Component HPIA
     Copy-Item -Path $BIOS -Destination "$($XMLInstallHPIA.Value)\HPIA Base"
 } 
 else {
     Write-host "Info: BIOS File exists in HPIA or does not exits in root, no need to copy"
-    Log -Message "BIOS File exists in HPIA or does not exits in root, no need to copy" -type 1 -LogFile $LogFile
+    Log -Message "BIOS File exists in HPIA or does not exits in root, no need to copy" -type 1 -LogFile $LogFile -Component HPIA
 }
 
 # If HPIA Installer was not updated, set false flag value
@@ -192,12 +195,12 @@ $NewHPIAVersion = Get-ChildItem -path "$($XMLInstallHPIA.Value)\HPIA Download" -
 if($CurrentHPIAVersion -eq $NewHPIAVersion) {
     $HPIAVersionUpdated = "False"
     Write-host "Info: HPIA was not updated, skipping to set HPIA to copy to driverpackages"
-    Log -Message "HPIA was not updated, skipping to set HPIA to copy to driverpackages" -type 1 -LogFile $LogFile
+    Log -Message "HPIA was not updated, skipping to set HPIA to copy to driverpackages" -type 1 -LogFile $LogFile -Component HPIA
 } 
 else {
     $HPIAVersionUpdated = "True"
     Write-host "Info: HPIA was updated, will update in each driverpackage"
-    Log -Message "HPIA was updated will update HPIA in each Driverpackage" -type 1 -LogFile $LogFile
+    Log -Message "HPIA was updated will update HPIA in each Driverpackage" -type 1 -LogFile $LogFile -Component HPIA
     }
 
 # Check if SSM is enabled in the config.
@@ -205,34 +208,34 @@ if ($XMLSSMONLY -eq "True") {
     $SSMONLY = "ssm"
 } 
 else {
-        Log -Message "SSM not enabled in ConfigFile" -type 1 -LogFile $LogFile
+        Log -Message "SSM not enabled in ConfigFile" -type 1 -LogFile $LogFile -Component HPIA
 }
 
 # Check if Category1 is enabled in the config.
 if ($XMLCategory1 -eq "True") {
     $Category1 = "dock"
-    Log -Message "Added dock drivers for download" -type 1 -LogFile $LogFile
+    Log -Message "Added dock drivers for download" -type 1 -LogFile $LogFile -Component HPIA
 }
 else {
-        Log -Message "Not enabled to download dock in ConfigFile" -type 2 -LogFile $LogFile
+        Log -Message "Not enabled to download dock in ConfigFile" -type 2 -LogFile $LogFile -Component HPIA
 }
 
 # Check if Category2 is enabled in the config.
 if ($XMLCategory2 -eq "True") {
     $Category2 = "driver"
-    Log -Message "Added drivers for download" -type 1 -LogFile $LogFile
+    Log -Message "Added drivers for download" -type 1 -LogFile $LogFile -Component HPIA
 }
 else {
-        Log -Message "Not Enabled to download drivers in ConfigFile" -type 2 -LogFile $LogFile
+        Log -Message "Not Enabled to download drivers in ConfigFile" -type 2 -LogFile $LogFile -Component HPIA
 }
 
 # Check if Category3 is enabled in the config.
 if ($XMLCategory3 -eq "True") {
     $Category3 = "firmware"
-    Log -Message "Added firmware for download" -type 1 -LogFile $LogFile
+    Log -Message "Added firmware for download" -type 1 -LogFile $LogFile -Component HPIA
 }
 else {
-        Log -Message "Not Enabled to download firmware in ConfigFile" -type 1 -LogFile $LogFile
+        Log -Message "Not Enabled to download firmware in ConfigFile" -type 1 -LogFile $LogFile -Component HPIA
 }
 
 # Check if Category4 is enabled in the config.
@@ -242,27 +245,27 @@ if ($XMLCategory4 -eq "True") {
 
 }
 else {
-        Log -Message "Not Enabled to download Driverpack in ConfigFile" -type 1 -LogFile $LogFile
+        Log -Message "Not Enabled to download Driverpack in ConfigFile" -type 1 -LogFile $LogFile -Component HPIA
 }
 
 # Check if Category5 is enabled in the config.
 if ($XMLCategory5 -eq "True") {
     $Category5 = "Bios"
-    Log -Message "Added BIOS for download" -type 1 -LogFile $LogFile
+    Log -Message "Added BIOS for download" -type 1 -LogFile $LogFile -Component HPIA
 
 }
 else {
-    Log -Message "Not Enabled to download BIOS in ConfigFile" -type 1 -LogFile $LogFile
+    Log -Message "Not Enabled to download BIOS in ConfigFile" -type 1 -LogFile $LogFile -Component HPIA
 }
 
 # Check if Email notificaiton is enabled in the config.
 if ($XMLEnableSMTP.Enabled -eq "True") {
     $SMTP = $($XMLEnableSMTP.SMTP)
     $EMAIL = $($XMLEnableSMTP.Adress)
-    Log -Message "Added SMTP: $SMTP and EMAIL: $EMAIL" -type 1 -LogFile $LogFile
+    Log -Message "Added SMTP: $SMTP and EMAIL: $EMAIL" -type 1 -LogFile $LogFile -Component HPIA
 } 
 else {
-    Log -Message "Email notification is not enabled in the Config" -type 1 -LogFile $LogFile
+    Log -Message "Email notification is not enabled in the Config" -type 1 -LogFile $LogFile -Component HPIA
 }
 
 #Importing supported computer models CSV file
@@ -270,20 +273,20 @@ if (Test-path $SupportedModelsCSV) {
 	$ModelsToImport = Import-Csv -Path $SupportedModelsCSV -ErrorAction Stop
     if ($ModelsToImport.Model.Count -gt "1")
     {
-        Log -Message "Info: $($ModelsToImport.Model.Count) models found" -Type 1 -LogFile $LogFile
+        Log -Message "Info: $($ModelsToImport.Model.Count) models found" -Type 1 -LogFile $LogFile -Component FileImport
         Write-host "Info: $($ModelsToImport.Model.Count) models found"
 
     }
     else
     {
-        Log -Message "Info: $($ModelsToImport.Model.Count) model found" -Type 1 -LogFile $LogFile
+        Log -Message "Info: $($ModelsToImport.Model.Count) model found" -Type 1 -LogFile $LogFile -Component FileImport
         Write-host "Info: $($ModelsToImport.Model.Count) model found"
 
     }   
 }
 else {
     Write-host "Could not find any .CSV file, the script will break" -ForegroundColor Red
-    Log -Message "Could not find any .CSV file, the script will break" -Type 3 -LogFile $LogFile
+    Log -Message "Could not find any .CSV file, the script will break" -Type 3 -LogFile $LogFile -Component FileImport
     Break
 }
 
@@ -291,7 +294,7 @@ $HPModelsTable = foreach ($Model in $ModelsToImport) {
     @(
     @{ ProdCode = "$($Model.ProductCode)"; Model = "$($Model.Model)"; OSVER = $Model.WindowsVersion }
     )
-    Log -Message "Added $($Model.ProductCode) $($Model.Model) $($Model.WindowsVersion) to download list" -type 1 -LogFile $LogFile
+    Log -Message "Added $($Model.ProductCode) $($Model.Model) $($Model.WindowsVersion) to download list" -type 1 -LogFile $LogFile -Component FileImport
     Write-host "Info: Added $($Model.ProductCode) $($Model.Model) $($Model.WindowsVersion) to download list" 
 }
 
@@ -311,7 +314,7 @@ foreach ($Model in $HPModelsTable) {
     $GLOBAL:UpdatePackage = $False
 #==============Monitor Changes for Update Package======================================================
 
-Log -Message "----------------------------------------------------------------------------" -LogFile $LogFile
+Log -Message "----------------------------------------------------------------------------" -LogFile $LogFile -Component HPIA -Type 1
 Write-host "----------------------------------------------------------------------------"
 
 $FileWatchCheck = "$($RepositoryPath)\$OSVER\$($Model.Model) $($Model.ProdCode)\Repository"
@@ -350,112 +353,112 @@ if (Test-path $FileWatchCheck)
 }
 else
 {
-        write-host "It's the first time this $($Model.Model) is running, no need to monitor file changes"
+        write-host "Info: It's the first time this $($Model.Model) is running, no need to monitor file changes"
         Log -Message "It's the first time this $($Model.Model) is running, no need to monitor file changes" -Type 1 -Component FileWatch -LogFile $LogFile
 }
 #=====================================================================================================================
 
-    Log -Message "Checking if repository for model $($Model.Model) aka $($Model.ProdCode) exists" -LogFile $LogFile
+    Log -Message "Checking if repository for model $($Model.Model) aka $($Model.ProdCode) exists" -LogFile $LogFile -Type 1 -Component HPIA
     write-host "Info: Checking if repository for model $($Model.Model) aka $($Model.ProdCode) exists"
     if (Test-Path "$($RepositoryPath)\$OSVER\$($Model.Model) $($Model.ProdCode)\Repository") { Log -Message "Repository for model $($Model.Model) aka $($Model.ProdCode) already exists" -LogFile $LogFile }
     if (-not (Test-Path "$($RepositoryPath)\$OSVER\$($Model.Model) $($Model.ProdCode)\Repository")) {
-        Log -Message "Repository for $($Model.Model) $($Model.ProdCode) does not exist, creating now" -LogFile $LogFile
+        Log -Message "Repository for $($Model.Model) $($Model.ProdCode) does not exist, creating now" -LogFile $LogFile -Type 1 -Component HPIA
         Write-host "Info: Repository for $($Model.Model) $($Model.ProdCode) does not exist, creating now"
         New-Item -ItemType Directory -Path "$($RepositoryPath)\$OSVER\$($Model.Model) $($Model.ProdCode)\Repository"
         if (Test-Path "$($RepositoryPath)\$OSVER\$($Model.Model) $($Model.ProdCode)\Repository") {
-            Log -Message "$($Model.Model) $($Model.ProdCode) HPIA folder and repository subfolder successfully created" -LogFile $LogFile
+            Log -Message "$($Model.Model) $($Model.ProdCode) HPIA folder and repository subfolder successfully created" -LogFile $LogFile -Type 1 -Component HPIA
             Write-host "Info: $($Model.Model) $($Model.ProdCode) HPIA folder and repository subfolder successfully created" -ForegroundColor Green
             }
         else {
-            Log -Message "Failed to create repository subfolder!" -LogFile $LogFile -Type 3
+            Log -Message "Failed to create repository subfolder!" -LogFile $LogFile -Type 3 -Component HPIA
             Write-host "Info: Failed to create repository subfolder!" -ForegroundColor Red
             Exit
         }
     }
     if (-not (Test-Path "$($RepositoryPath)\$OSVER\$($Model.Model) $($Model.ProdCode)\Repository\.repository")) {
-        Log -Message "Repository not initialized, initializing now" -LogFile $LogFile
+        Log -Message "Repository not initialized, initializing now" -LogFile $LogFile -Type 1 -Component HPIA
         Write-host "Info: Repository not initialized, initializing now"
         Set-Location -Path "$($RepositoryPath)\$OSVER\$($Model.Model) $($Model.ProdCode)\Repository"
         Initialize-Repository
         if (Test-Path "$($RepositoryPath)\$OSVER\$($Model.Model) $($Model.ProdCode)\Repository\.repository") {
             Write-host "Info: $($Model.Model) $($Model.ProdCode) repository successfully initialized"
-            Log -Message "$($Model.Model) $($Model.ProdCode) repository successfully initialized" -LogFile $LogFile
+            Log -Message "$($Model.Model) $($Model.ProdCode) repository successfully initialized" -LogFile $LogFile -Type 1 -Component HPIA
         }
         else {
-            Log -Message "Failed to initialize repository for $($Model.Model) $($Model.ProdCode)" -LogFile $LogFile -Type 3
+            Log -Message "Failed to initialize repository for $($Model.Model) $($Model.ProdCode)" -LogFile $LogFile -Type 3 -Component HPIA
             Write-host "Info: Failed to initialize repository for $($Model.Model) $($Model.ProdCode)" -ForegroundColor Red
             Exit
         }
     }    
     
-    Log -Message "Setting download location to: $($RepositoryPath)\$OSVER\$($Model.Model) $($Model.ProdCode)\Repository" -LogFile $LogFile
+    Log -Message "Setting download location to: $($RepositoryPath)\$OSVER\$($Model.Model) $($Model.ProdCode)\Repository" -LogFile $LogFile -Type 1 -Component HPIA
     Set-Location -Path "$($RepositoryPath)\$OSVER\$($Model.Model) $($Model.ProdCode)\Repository"
     
     if ($XMLEnableSMTP.Enabled -eq "True") {
         Set-RepositoryNotificationConfiguration $SMTP
         Add-RepositorySyncFailureRecipient -to $EMAIL
-        Log -Message "Configured notification for $($Model.Model) $($Model.ProdCode) with SMTP: $SMTP and Email: $EMAIL" -LogFile $LogFile
+        Log -Message "Configured notification for $($Model.Model) $($Model.ProdCode) with SMTP: $SMTP and Email: $EMAIL" -LogFile $LogFile -Type 1 -Component HPIA
     }  
     
-    Log -Message "Remove any existing repository filter for $($Model.Model)" -LogFile $LogFile
+    Log -Message "Remove any existing repository filter for $($Model.Model)" -LogFile $LogFile -Type 1 -Component HPIA
     Remove-RepositoryFilter -platform $($Model.ProdCode) -yes
     
-    Log -Message "Applying repository filter for $($Model.Model) repository" -LogFile $LogFile
+    Log -Message "Applying repository filter for $($Model.Model) repository" -LogFile $LogFile -Type 1 -Component HPIA
     if ($XMLCategory1 -eq "True") {
            Add-RepositoryFilter -platform $($Model.ProdCode) -os $OS -osver $($Model.OSVER) -category $Category1
-           Log -Message "Applying repository filter to $($Model.Model) repository to download: $Category1" -type 1 -LogFile $LogFile
+           Log -Message "Applying repository filter to $($Model.Model) repository to download: $Category1" -type 1 -LogFile $LogFile -Component HPIA
 
     }
     else {
-        Log -Message "Not applying repository filter to download $($Model.Model) for: dock" -type 1 -LogFile $LogFile
+        Log -Message "Not applying repository filter to download $($Model.Model) for: dock" -type 1 -LogFile $LogFile -Type 1 -Component HPIA
 
     }
     if ($XMLCategory2 -eq "True") {
         Add-RepositoryFilter -platform $($Model.ProdCode) -os $OS -osver $($Model.OSVER) -category $Category2
-        Log -Message "Applying repository filter to $($Model.Model) repository to download: $Category2" -type 1 -LogFile $LogFile
+        Log -Message "Applying repository filter to $($Model.Model) repository to download: $Category2" -type 1 -LogFile $LogFile -Component HPIA
 
     }
     else {
-        Log -Message "Not applying repository filter to download $($Model.Model) for: Driver" -type 1 -LogFile $LogFile
+        Log -Message "Not applying repository filter to download $($Model.Model) for: Driver" -type 1 -LogFile $LogFile -Component HPIA
 
     }
     if ($XMLCategory3 -eq "True") {
         Add-RepositoryFilter -platform $($Model.ProdCode) -os $OS -osver $($Model.OSVER) -category $Category3
-        Log -Message "Applying repository filter to $($Model.Model) repository to download: $Category3" -type 1 -LogFile $LogFile
+        Log -Message "Applying repository filter to $($Model.Model) repository to download: $Category3" -type 1 -LogFile $LogFile -Component HPIA
     }
     else {
-        Log -Message "Not applying repository filter to download $($Model.Model) for: Firmware" -type 1 -LogFile $LogFile
+        Log -Message "Not applying repository filter to download $($Model.Model) for: Firmware" -type 1 -LogFile $LogFile -Component HPIA
     }
     if ($XMLCategory4 -eq "True") {
         Add-RepositoryFilter -platform $($Model.ProdCode) -os $OS -osver $($Model.OSVER) -category $Category4
-        Log -Message "Applying repository filter to $($Model.Model) repository to download: $Category4" -type 1 -LogFile $LogFile
+        Log -Message "Applying repository filter to $($Model.Model) repository to download: $Category4" -type 1 -LogFile $LogFile -Component HPIA
 
     }
     else {
-        Log -Message "Not applying repository filter to download $($Model.Model) for: DriverPack" -type 1 -LogFile $LogFile
+        Log -Message "Not applying repository filter to download $($Model.Model) for: DriverPack" -type 1 -LogFile $LogFile -Component HPIA
     }
 
     if ($XMLCategory5 -eq "True") {
         Add-RepositoryFilter -platform $($Model.ProdCode) -os $OS -osver $($Model.OSVER) -category $Category5
-        Log -Message "Applying repository filter to $($Model.Model) repository to download: $Category5" -type 1 -LogFile $LogFile
+        Log -Message "Applying repository filter to $($Model.Model) repository to download: $Category5" -type 1 -LogFile $LogFile -Component HPIA
 
     }
     else {
-        Log -Message "Not applying repository filter to download $($Model.Model) for: BIOS" -type 1 -LogFile $LogFile
+        Log -Message "Not applying repository filter to download $($Model.Model) for: BIOS" -type 1 -LogFile $LogFile -Component HPIA
     }
 
-    Log -Message "Invoking repository sync for $($Model.Model) $($Model.ProdCode) repository $os, $($Model.OSVER)" -LogFile $LogFile
+    Log -Message "Invoking repository sync for $($Model.Model) $($Model.ProdCode) repository $os, $($Model.OSVER)" -LogFile $LogFile -Component HPIA
     Write-host "Info: Invoking repository sync for $($Model.Model) $($Model.ProdCode) repository $os, $($Model.OSVER)"
     Invoke-RepositorySync -Quiet
     Set-RepositoryConfiguration -Setting OfflineCacheMode -CacheValue Enable
     Start-Sleep -s 15
     Set-RepositoryConfiguration -Setting OfflineCacheMode -CacheValue Enable
 
-    Log -Message "Invoking repository cleanup for $($Model.Model) $($Model.ProdCode) repository for all selected categories" -LogFile $LogFile
+    Log -Message "Invoking repository cleanup for $($Model.Model) $($Model.ProdCode) repository for all selected categories" -LogFile $LogFile -Type 1 -Component HPIA
     Write-host "Info: Invoking repository cleanup for $($Model.Model) $($Model.ProdCode) for all selected categories"
     Invoke-RepositoryCleanup
     Set-RepositoryConfiguration -Setting OfflineCacheMode -CacheValue Enable
-    Log -Message "Confirm HPIA files are up to date for $($Model.Model) $($Model.ProdCode)" -LogFile $LogFile 
+    Log -Message "Confirm HPIA files are up to date for $($Model.Model) $($Model.ProdCode)" -LogFile $LogFile -Type 1 -Component HPIA
     Write-host "Info: Confirm HPIA files are up to date for $($Model.Model) $($Model.ProdCode)" 
 
     $HPIARepoPath = "$($RepositoryPath)\$OSVER\$($Model.Model) $($Model.ProdCode)\HPImageAssistant.exe"
@@ -467,7 +470,7 @@ else
 
     if (($HPIAVersionUpdated -eq "True") -or ($HpiaNotCopied -eq "True")) {
         Write-Host "Info: Running HPIA Update"
-        Log -Message "Running HPIA Update" -type 1 -LogFile $LogFile
+        Log -Message "Running HPIA Update" -type 1 -LogFile $LogFile -Component HPIA
         $RobocopySource = "$($XMLInstallHPIA.Value)\HPIA Base"
         $RobocopyDest = "$($RepositoryPath)\$OSVER\$($Model.Model) $($Model.ProdCode)"
         $RobocopyArg = '"'+$RobocopySource+'"'+' "'+$RobocopyDest+'"'+' /xc /xn /xo /fft /e /b /copyall'
@@ -478,7 +481,7 @@ else
     else {
 
         Write-Host "Info: No need to update HPIA, skipping this step."
-        Log -Message "No need to update HPIA, skipping." -type 1 -LogFile $LogFile
+        Log -Message "No need to update HPIA, skipping." -type 1 -LogFile $LogFile -Component HPIA
 
         }
 
@@ -486,7 +489,7 @@ else
     $OfflinePath = "$($RepositoryPath)\$OSVER\$($Model.Model) $($Model.ProdCode)\Repository\.repository\cache\offline"
     if(!(Test-Path $OfflinePath)){
         Write-Host "Info: Folder not detected, running RepositoryConfiguration again in 20 seconds" -ForegroundColor Red
-        Log -Message "Folder not detected, running RepositoryConfiguration again in 20 seconds" -type 2 -LogFile $LogFile
+        Log -Message "Folder not detected, running RepositoryConfiguration again in 20 seconds" -type 2 -LogFile $LogFile -Component HPIA
         Start-Sleep -Seconds 20
         Invoke-RepositorySync -Quiet
         Start-Sleep -Seconds 15
@@ -495,7 +498,7 @@ else
         }
     if(!(Test-Path $OfflinePath)){
         Write-Host "Offlinefolder still not detected, please run script manually again and update Distribution points"
-        Log -Message "Offlinefolder still not detected, please run script manually again and update Distribution points" -type 3 -LogFile $LogFile
+        Log -Message "Offlinefolder still not detected, please run script manually again and update Distribution points" -type 3 -LogFile $LogFile -Component HPIA
         } 
 
 
@@ -510,9 +513,9 @@ else
     Set-location "$($SiteCode):\"
     if ((Test-path $CMfolderPath) -eq $false)
     {
-        Log -Message "$CMFolderPath does not exists in ConfigMgr, creating folder path" -type 2 -LogFile $LogFile
+        Log -Message "$CMFolderPath does not exists in ConfigMgr, creating folder path" -type 2 -LogFile $LogFile -Component ConfigMgr
         New-Item -ItemType directory -Path $CMfolderPath
-        Log -Message "$CMFolderPath was successfully created in ConfigMgr" -type 2 -LogFile $LogFile
+        Log -Message "$CMFolderPath was successfully created in ConfigMgr" -type 2 -LogFile $LogFile -Component ConfigMgr
     }
 
     $SourcesLocation = $RobocopyDest # Set Source location
@@ -532,13 +535,13 @@ else
         Write-host "Info: Creating $PackageName in ConfigMgr"
         New-CMPackage -Name $PackageName -Description $PackageDescription -Manufacturer $PackageManufacturer -Version $PackageVersion -Path $SourcesLocation
         Set-CMPackage -Name $PackageName -DistributionPriority Normal -CopyToPackageShareOnDistributionPoints $True -EnableBinaryDeltaReplication $True
-        Log -Message "$PackageName is created in ConfigMgr" -LogFile $LogFile        
+        Log -Message "$PackageName is created in ConfigMgr" -LogFile $LogFile -Type 1 -Component ConfigMgr    
         Start-CMContentDistribution -PackageName  "$PackageName" -DistributionPointGroupName "$DPGroupName"
         Log -Message "Starting to send out $PackageName to $DPGroupName" -type 1 -LogFile $LogFile -Component ConfigMgr
         
         $MovePackage = Get-CMPackage -Fast -Name $PackageName        
         Move-CMObject -FolderPath $CMFolderPath -InputObject $MovePackage
-        Log -Message "Moving ConfigMgr package to $CMFolderPath" -LogFile $LogFile -Component ConfigMgr
+        Log -Message "Moving ConfigMgr package to $CMFolderPath" -LogFile $LogFile -Component ConfigMgr -Type 1
         
         Set-Location -Path "$($InstallPath)"
         Write-host "Info: $PackageName is created in ConfigMgr and distributed to $DPGroupName"
@@ -551,7 +554,7 @@ else
         }
         Else {
             Write-Host "Info: No Changes was Made when running RepositorySync, not updating ConfigMgrPkg: $PackageName on DistributionPoint"
-            Log -Message "No Changes was Made, not updating ConfigMgrPkg: $PackageName on DistributionPoint" -type 1 -LogFile $LogFile
+            Log -Message "No Changes was Made, not updating ConfigMgrPkg: $PackageName on DistributionPoint" -type 1 -LogFile $LogFile -Component ConfigMgr
 
         }
             Set-Location -Path $($InstallPath)
