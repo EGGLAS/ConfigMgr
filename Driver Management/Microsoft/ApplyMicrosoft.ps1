@@ -1,18 +1,20 @@
 <# Author: Nicklas Eriksson & Daniel Gråhns
- Date: 2021-06-30
+ Date: 2021-06-28
  Purpose: Download Microsoft drivers & apply drivers during OS Deployment or OS Upgrade. 
 
  Version: 1.0
- Changelog: 1.0 - 2021-02-11 - Nicklas Eriksson -  Script was created. Purpose to replace the old script with purpose to use one script to handle downloading of drivers and install HPIA.
+ Changelog: 1.0 - 2021-06-28 - Nicklas Eriksson -  Script was created. Purpose to replace the old script with purpose to use one script to handle downloading of drivers and install HPIA.
 
 TO-Do
- - Check if we are running the script in WinPE or not so the drivers can be downloaded during Pre-cache.
+ - Check if we are running the script in WinPE or not so the drivers can be downloaded during Pre-cache. 
+ - Do we support Pre-cache? 
+ - Need to be able to install drivers during Driver upgrade check. 
  - Fallback to latest support OS?
  - Should be able to run script in debug mode.
 
-ApplyHPIA.ps1 -Siteserver "server.domain.local" -OSVersion "20H2"  
-ApplyHPIA.ps1 -Siteserver "server.domain.local" -OSVersion "20H2" -DownloadPath "TSCache"
-ApplyHPIA.ps1 -Siteserver "server.domain.local" -OSVersion "20H2" -Precache "PreCache"
+ApplyMicrosoft.ps1 -Siteserver "server.domain.local" -OSVersion "20H2"  
+ApplyMicrosoft.ps1 -Siteserver "server.domain.local" -OSVersion "20H2" -DownloadPath "TSCache"
+ApplyMicrosoft.ps1 -Siteserver "server.domain.local" -OSVersion "20H2" -Precache "PreCache"
 
 NOTES 
 
@@ -77,17 +79,17 @@ $LogFile = $TSEnvironment.Value("_SMSTSLogPath") + "\ApplyMicrosoft.log" # Apply
 $Surface = "SURFACE"
 
 $Scriptversion = "1.0"
-Log -Message "ApplyMicrosoft is about to start..." -type 1 -Component "HPIA" -LogFile $LogFile
-Log -Message "Loading script with version: $Scriptversion" -type 1 -Component "HPIA" -LogFile $LogFile
+Log -Message "ApplyMicrosoft is about to start..." -type 1 -Component ApplyMicrosoft -LogFile $LogFile
+Log -Message "Loading script with version: $Scriptversion" -type 1 -Component ApplyMicrosoft -LogFile $LogFile
 
 # Attempt to read TSEnvironment variable AdminserviceUser
 $AdminserviceUser = $TSEnvironment.Value("AdminserviceUser")
 if (-not ([string]::IsNullOrEmpty($AdminserviceUser))) {
                
-        Log -Message "Successfully read service account user name from TS environment variable 'Adminserviceuser': ********" -Type 1 -Component "HPIA" -LogFile $LogFile
+        Log -Message "Successfully read service account user name from TS environment variable 'Adminserviceuser': ********" -Type 1 -Component Adminservice -LogFile $LogFile
     }
 else {
-        Log -Message "Required service account user name could not be determined from TS environment variable 'Adminserviceuser'" -type 3 -Component "HPIA" -LogFile $LogFile
+        Log -Message "Required service account user name could not be determined from TS environment variable 'Adminserviceuser'" -type 3 -Component Adminservice -LogFile $LogFile
         $Errorcode = "Required service account user name could not be determined from TS environment variable"
         (new-object -ComObject Microsoft.SMS.TsProgressUI).CloseProgressDialog() ; (new-object -ComObject wscript.shell).Popup("$($Errorcode) ",0,'Warning',0x0 + 0x30) ; Exit 0
     }
@@ -96,16 +98,16 @@ else {
 if ([string]::IsNullOrEmpty($Password)) {
 			switch ($Script:PSCmdLet.ParameterSetName) {
 				"Debug" {
-					Log -Message " - Required service account password could not be determined from parameter input" -Component "HPIA" -type 3 -LogFile $LogFile
+					Log -Message " - Required service account password could not be determined from parameter input" -Component Adminservice -type 3 -LogFile $LogFile
 				}
 				default {
 					# Attempt to read TSEnvironment variable AdminservicePassword
 					$Password = $TSEnvironment.Value("AdminservicePassword")
 					if (-not([string]::IsNullOrEmpty($Password))) {
-						Log -Message "Successfully read service account password from TS environment variable 'AdminservicePassword': ********" -Component "HPIA" -type 1 -LogFile $LogFile
+						Log -Message "Successfully read service account password from TS environment variable 'AdminservicePassword': ********" -Component Adminservice -type 1 -LogFile $LogFile
 					}
 					else {
-						Log -message "Required service account password could not be determined from TS environment variable" -Component "HPIA" -type 3 -LogFile $LogFile
+						Log -message "Required service account password could not be determined from TS environment variable" -Component Adminservice -type 3 -LogFile $LogFile
                         $Errorcode = "Required service account password could not be determined from TS environment variable"
                         (new-object -ComObject Microsoft.SMS.TsProgressUI).CloseProgressDialog() ; (new-object -ComObject wscript.shell).Popup("$($Errorcode) ",0,'Warning',0x0 + 0x30) ; Exit 0
 
@@ -121,15 +123,15 @@ else {
 $EncryptedPassword = ConvertTo-SecureString -String $Password -AsPlainText -Force
 $Credential = New-Object -TypeName System.Management.Automation.PSCredential -ArgumentList @($AdminserviceUser, $EncryptedPassword)
 
-log -Message "Attempting to read local computer variables" -Type 1 -Component ApplyMicrosoft -LogFile $LogFile				        
+log -Message "Attempting to read local computer variables" -Type 1 -Component LocalComputer -LogFile $LogFile				        
 $Manufacturer = "Microsoft"
 $ComputerModel = (Get-WmiObject -Class "Win32_ComputerSystem" | Select-Object -ExpandProperty Model).Trim()
 $ComputerSKU = Get-WmiObject -Namespace "root\wmi" -Class "MS_SystemInformation" | Select-Object -ExpandProperty SystemSKU
 
-log -Message "Computermodel: $($ComputerModel)" -Type 1 -Component ApplyMicrosoft -LogFile $LogFile				        
-log -Message "SKU: $($ComputerSKU)" -Type 1 -Component ApplyMicrosoft -LogFile $LogFile
-log -Message "OSVersion: $($OSVersion)" -Type 1 -Component ApplyMicrosoft -LogFile $LogFile				        
-log -Message "Done with reading local computer variables" -Type 1 -Component ApplyMicrosoft -LogFile $LogFile				        
+log -Message "Computermodel: $($ComputerModel)" -Type 1 -Component LocalComputer -LogFile $LogFile				        
+log -Message "SKU: $($ComputerSKU)" -Type 1 -Component LocalComputer -LogFile $LogFile
+log -Message "OSVersion: $($OSVersion)" -Type 1 -Component LocalComputer -LogFile $LogFile				        
+log -Message "Done with reading local computer variables" -Type 1 -Component LocalComputer -LogFile $LogFile				        
 
 
 # Variables for ConfigMgr Adminservice.
@@ -138,17 +140,17 @@ $FilterPackages = "/SMS_Package?`$filter=contains(Name,'$($Filter)')"
 $AdminServiceURL = "https://{0}/AdminService/wmi" -f $SiteServer
 $AdminServiceUri = $AdminServiceURL + $FilterPackages
 
-log -Message "Will use this filter to attempt to get the correct driver package from adminservice: $($Filter)" -Type 1 -Component HPIA -LogFile $LogFile				        
+log -Message "Will use this filter to attempt to get the correct driver package from adminservice: $($Filter)" -Type 1 -Component Adminservice -LogFile $LogFile				        
 
 try {
-        log -Message "Trying to access adminservice with the following URL: $($AdminServiceUri)" -Type 1 -Component HPIA -LogFile $LogFile				        
+        log -Message "Trying to access adminservice with the following URL: $($AdminServiceUri)" -Type 1 -Component Adminservice -LogFile $LogFile				        
         $AdminServiceResponse = Invoke-RestMethod $AdminServiceUri -Method Get -Credential $Credential -ErrorAction Stop
-        log -Message "Found the correct driver package from adminservice." -Type 1 -Component HPIA -LogFile $LogFile
-        log -Message "Grabbing Name and PackageID from driverpackage" -Type 1 -Component HPIA -LogFile $LogFile				  
+        log -Message "Found the correct driver package from adminservice." -Type 1 -Component Adminservice -LogFile $LogFile
+        log -Message "Grabbing Name and PackageID from driverpackage" -Type 1 -Component Adminservice -LogFile $LogFile				  
         $AllMicrosoftPackage = $AdminServiceResponse.value  | Select-Object Name,PackageID, SourceDate
         $MicrosoftPackage = $AllMicrosoftPackage | Sort-Object Name,PackageID, SourceDate -Descending | Select-Object -First 1
-        log -Message "Name: $($MicrosoftPackage.Name)" -Type 1 -Component HPIA -LogFile $LogFile				
-        log -Message "PackageID: $($MicrosoftPackage.PackageID)" -Type 1 -Component HPIA -LogFile $LogFile				
+        log -Message "Name: $($MicrosoftPackage.Name)" -Type 1 -Component Adminservice -LogFile $LogFile				
+        log -Message "PackageID: $($MicrosoftPackage.PackageID)" -Type 1 -Component Adminservice -LogFile $LogFile				
         }
 catch [System.Security.Authentication.AuthenticationException] {
 					
@@ -163,12 +165,12 @@ catch [System.Security.Authentication.AuthenticationException] {
 					
 	try {
 		# Call AdminService endpoint to retrieve package data
-        log -Message "Trying to access adminservice with following URL: $($AdminServiceUri)" -Type 1 -Component HPIA -LogFile $LogFile				
+        log -Message "Trying to access adminservice with following URL: $($AdminServiceUri)" -Type 1 -Component Adminservice -LogFile $LogFile				
         $AdminServiceResponse = Invoke-RestMethod $AdminServiceUri -Method Get -Credential $Credential -ErrorAction Stop 
         $AllMicrosoftPackage = $AdminServiceResponse.value  | Select-Object Name,PackageID, SourceDate
         $MicrosoftPackage = $AllMicrosoftPackage | Sort-Object Name,PackageID, SourceDate -Descending | Select-Object -First 1
-        log -Message "Name: $($MicrosoftPackage.Name)" -Type 1 -Component HPIA -LogFile $LogFile				
-        log -Message "PackageID: $($MicrosoftPackage.PackageID)" -Type 1 -Component HPIA -LogFile $LogFile				
+        log -Message "Name: $($MicrosoftPackage.Name)" -Type 1 -Component Adminservice -LogFile $LogFile				
+        log -Message "PackageID: $($MicrosoftPackage.PackageID)" -Type 1 -Component Adminservice -LogFile $LogFile				
         if ($MicrosoftPackage.Count -gt "1")
         {
             
@@ -176,7 +178,7 @@ catch [System.Security.Authentication.AuthenticationException] {
 	}
 	catch [System.Exception] {
 		# Throw error code
-		log -Message "Failed to retrive driver package from ConfigMgr Adminservice for $($Filter)." -Type 3 -Component HPIA -LogFile $LogFile				
+		log -Message "Failed to retrive driver package from ConfigMgr Adminservice for $($Filter)." -Type 3 -Component Adminservice -LogFile $LogFile				
         $Errorcode = "Failed to retrive driver package from ConfigMgr Adminservice for $($Filter)."
         (new-object -ComObject Microsoft.SMS.TsProgressUI).CloseProgressDialog() ; (new-object -ComObject wscript.shell).Popup("$($Errorcode) ",0,'Warning',0x0 + 0x30) ; Exit 0
         Throw
@@ -184,7 +186,7 @@ catch [System.Security.Authentication.AuthenticationException] {
 }
 catch {
 	# Throw error code
-		log -Message "Failed to retrive driver package from ConfigMgr Adminservice for $($Filter)." -Type 3 -Component HPIA -LogFile $LogFile				
+		log -Message "Failed to retrive driver package from ConfigMgr Adminservice for $($Filter)." -Type 3 -Component Adminservice -LogFile $LogFile				
         $Errorcode = "Failed to retrive driver package from ConfigMgr Adminservice for $($Filter)."
         (new-object -ComObject Microsoft.SMS.TsProgressUI).CloseProgressDialog() ; (new-object -ComObject wscript.shell).Popup("$($Errorcode) ",0,'Warning',0x0 + 0x30) ; Exit 0
         Throw
@@ -197,10 +199,10 @@ $TSEnvironment.value("OSDDownloadContinueDownloadOnError") = "1"
 $TSEnvironment.value("OSDDownloadDownloadPackages") = "$($MicrosoftPackage.PackageID)"
 $TSEnvironment.value("OSDDownloadDestinationVariable") = "$($Surface)"
 
-Log -Message "Setting OSDDownloadDownloadPackages: $($DownloadPath)" -type 1 -LogFile $LogFile -Component HPIA
-Log -Message "Setting OSDDownloadContinueDownloadOnError: 1" -type 1 -LogFile $LogFile -Component HPIA
-Log -Message "Setting OSDDownloadDownloadPackages: $($MicrosoftPackage.PackageID)" -type 1 -LogFile $LogFile -Component HPIA
-Log -Message "Setting OSDDownloadDestinationVariable: $($Surface)" -type 1 -LogFile $LogFile -Component HPIA
+Log -Message "Setting OSDDownloadDownloadPackages: $($DownloadPath)" -type 1 -LogFile $LogFile -Component OSDDownloadContent
+Log -Message "Setting OSDDownloadContinueDownloadOnError: 1" -type 1 -LogFile $LogFile -Component OSDDownloadContent
+Log -Message "Setting OSDDownloadDownloadPackages: $($MicrosoftPackage.PackageID)" -type 1 -LogFile $LogFile -Component OSDDownloadContent
+Log -Message "Setting OSDDownloadDestinationVariable: $($Surface)" -type 1 -LogFile $LogFile -Component OSDDownloadContent
 
 
 function Invoke-Executable {
@@ -241,16 +243,23 @@ function Invoke-Executable {
 	}
 
 # Download Drivers with OSDDownloadContent
-log -message "Starting package content download process, this might take some time" -Type 1 -Component HPIA -LogFile $LogFile
-$ReturnCode = Invoke-Executable -FilePath "OSDDownloadContent.exe"
+			if ($TSEnvironment.Value("_SMSTSInWinPE") -eq $false) {
+                log -message "Starting package content download process outside WinPE, this might take some time" -Type 1 -Component OSDDownloadContent -LogFile $LogFile				
+                $ReturnCode = Invoke-Executable -FilePath (Join-Path -Path $env:windir -ChildPath "CCM\OSDDownloadContent.exe")
+			}
+			else {
+                log -message "Starting package content download process inside WinPE, this might take some time" -Type 1 -Component OSDDownloadContent -LogFile $LogFile
+				$ReturnCode = Invoke-Executable -FilePath "OSDDownloadContent.exe"
+			}
+
 
     # Match on return code
 	if ($ReturnCode -eq 0) {
-		log -message "Successfully downloaded package content with PackageID: $($MicrosoftPackage.PackageID)" -Type 1 -Component HPIA -LogFile $LogFile
-        write-host "Successfully downloaded package content with PackageID: $($MicrosoftPackage.PackageID)" -ForegroundColor green
+		log -message "Successfully downloaded package content with PackageID: $($MicrosoftPackage.PackageID)" -Type 1 -Component OSDDownloadContent -LogFile $LogFile
+        write-host "Successfully downloaded package content with PackageID: $($MicrosoftPackage.PackageID)" -ForegroundColor Green
 	}
 	else {
-		log -Message "Failed to download or driver package is missing in ConfigMgr: $($Filter)." -Type 3 -Component HPIA -LogFile $LogFile
+		log -Message "Failed to download or driver package is missing in ConfigMgr: $($Filter)." -Type 3 -Component OSDDownloadContent -LogFile $LogFile
 				
 		# Throw terminating error
         $Errorcode = "Failed to download or driver package is missing in ConfigMgr: $($Filter)."
@@ -261,18 +270,18 @@ $ReturnCode = Invoke-Executable -FilePath "OSDDownloadContent.exe"
 
 # Set Softpaq to Softpaq01 to get an working directory. 
 ($ContentPath) = $TSEnvironment.Value("surface01") 
-Log -Message "Setting TS variable Softpaq01: $($ContentPath)" -type 1 -LogFile $LogFile -Component HPIA
+Log -Message "Setting TS variable Softpaq01: $($ContentPath)" -type 1 -LogFile $LogFile -Component ConfigMgr
 
-log -Message "Starting to reset the task sequence variable that were used to download drivers" -Type 1 -Component HPIA -LogFile $LogFile
+log -Message "Starting to reset the task sequence variable that were used to download drivers" -Type 1 -Component OSDDownloadContent -LogFile $LogFile
 $TSEnvironment.Value("OSDDownloadDownloadPackages") = [System.String]::Empty	
 $TSEnvironment.Value("OSDDownloadDestinationLocationType") = [System.String]::Empty
 $TSEnvironment.Value("OSDDownloadDestinationVariable") = [System.String]::Empty
 $TSEnvironment.Value("OSDDownloadDestinationPath") = [System.String]::Empty
 
-log -Message "Setting task sequence variable OSDDownloadDownloadPackages to a blank value" -Type 1 -Component HPIA -LogFile $LogFile
-log -Message "Setting task sequence variable OSDDownloadDestinationLocationType to a blank value" -Type 1 -Component HPIA -LogFile $LogFile
-log -Message "Setting task sequence variable OSDDownloadDestinationVariable to a blank value" -Type 1 -Component HPIA -LogFile $LogFile
-log -message "Setting task sequence variable OSDDownloadDestinationPath to a blank value" -Type 1 -Component HPIA -LogFile $LogFile
+log -Message "Setting task sequence variable OSDDownloadDownloadPackages to a blank value" -Type 1 -Component OSDDownloadContent -LogFile $LogFile
+log -Message "Setting task sequence variable OSDDownloadDestinationLocationType to a blank value" -Type 1 -Component OSDDownloadContent -LogFile $LogFile
+log -Message "Setting task sequence variable OSDDownloadDestinationVariable to a blank value" -Type 1 -Component OSDDownloadContent -LogFile $LogFile
+log -message "Setting task sequence variable OSDDownloadDestinationPath to a blank value" -Type 1 -Component OSDDownloadContent -LogFile $LogFile
 
 
  if ([string]::IsNullOrEmpty($PreCache))
@@ -324,4 +333,4 @@ else {
 
 }
 
-Log -Message "Microsoft process is now completed and the following package has been installed to the computer: $($MicrosoftPackage.Name)" -Component "HPIA" -Type 1 -logfile $LogFile
+Log -Message "Microsoft process is now completed and the following package has been installed to the computer: $($MicrosoftPackage.Name)" -Component "ApplyMicrosoft" -Type 1 -logfile $LogFile
