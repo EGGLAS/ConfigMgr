@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Configuration>
+	<Install Name="InstallPath" Value="E:\ImportMicrosoft" />	<!-- Install path for the HPIA script. -->
+	<Install Name="SiteCode" Value="CM1" />	<!--Speicify SiteCode for ConfigMgr-->
+	<Install Name="CMFolderPath" Value="CM1:\Package\Driver Packages\Test" />	<!-- Folder path in Configuration Manager -->
+	<Install Name="ConfigMgrModule" Value="E:\Program Files\Microsoft Configuration Manager\AdminConsole\bin\ConfigurationManager.psd1" />	<!--Path to ConfigMgr module-->
+	<Install Name="SourcePath" Value="\\lab01\sources$\OS Deployment\Driver Packages\Microsoft" />	<!--Driverpackage path for drivers-->
+	<Install Name="DriverImport" Value="\\lab01\sources$\OS Deployment\Driver Import\Microsoft" /> <!--Importpath for drivers-->
+	<Install Name="SupportComputerModels" Value="Import-Models.csv" />	<!--Specify location to CSV file for the supported computer models-->
+	<Install Name="Cleanup" DriverImport="True" />	<!--Specify if you want to save driver import files otherwise the files will be deleted.-->
+	<Install Name="DPGroupName" Value="All DPs" />	<!-- Set DP GroupName -->
+</Configuration>
