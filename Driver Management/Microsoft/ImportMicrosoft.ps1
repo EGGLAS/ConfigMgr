@@ -1,6 +1,7 @@
-﻿<#
+<#
 .SYNOPSIS
   Download latest Surface drivers from Microsoft, get supported models from XML-file. 
+  Idea came from our solution HPIA.
 .DESCRIPTION
 
  Important links:
@@ -10,16 +11,19 @@
 .INPUTS
   <Inputs if any, otherwise state None>
 .OUTPUTS
-  \ImportMicrosoft.log>
+  \ImportMicrosoft.log
 .NOTES
   Version:        1.0
-  Author:         Nicklas Eriksson
+  Author:         Nicklas Eriksson / Daniel Gråhns
   Creation Date:  2021-06-23
   Purpose/Change: Initial script development
   
 .EXAMPLE
-  <Example goes here. Repeat this attribute for more than one example>
+  .\ImportMicrosoft.ps1 -config .\Config.xml
 
+.Credits
+Big shoutout and credit to Maurice Dualy and Nikolaj Andersen for their outstanding work with  Modern Driver Management for making this solution possible. 
+Some code are borrowed from their awesome solution to making this solution work.
 
 #>
 
@@ -28,8 +32,6 @@ param(
     [Parameter(HelpMessage='Path to XML Configuration File')]
     [string]$Config
 )
-
-#$Config = "E:\Microsoft\Config.xml" #(.\ImportHPIA.ps1 -config .\config.xml) # Only used for debug purpose, it's better to run the script from script line.
 
 
 $stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
@@ -98,6 +100,7 @@ $SupportedModelsCSV = $InstallPath + "\" + $ModelsCSV
 $Downloadlink = $InstallPath + "\" + "DownloadLinks.csv"
 $LogFile = "$InstallPath\MicrosoftUpdate.log" #Filename for the logfile.
 [int]$MaxLogSize = 9999999
+$OldOSVersions = @('18362','18363','19041')
 
 
 #If the log file exists and is larger then the maximum then roll it over with with an move function, the old log file name will be .lo_ after.
@@ -226,20 +229,44 @@ foreach ($Model in $AllMicrosoftsModels)
             Write-host "Info: Starting check to see if link is good or not $([string]$ReturnedURL)"
             if ($ReturnedURL -match ".msi")
             {
-                Write-host "Info: Link is good will contiune the process for $TrimModel"
-                Log -Message "Link is good will contiune the process for $TrimModel" -type 1 -LogFile $LogFile -Component Webrequest
-
+                Write-host "Info: Link is good will contiune with downloading the MSI for $TrimModel"
             }
             else
             {
-                Write-host "Info: Bad link, no MSI found on this link. Moving on the next model in the list" -ForegroundColor Red
-                Log -Message "Link is good will contiune the process for $TrimModel" -type 1 -LogFile $LogFile -Component Webrequest
+                Write-host "Info: Bad link, no MSI is found on this link. Trying older Windows 10 build numbers to download drivers for $TrimModel." -ForegroundColor Red               
+                Log -Message "Bad link, no MSI is found on this link. Trying older Windows 10 build numbers to download drivers for $TrimModel" -type 3 -LogFile $LogFile -Component Webrequest
 
-                Continue 
-            }
-        }		
-		$Response.Close()
-        
+                foreach ($OldOSVer in $OldOSVersions)
+                {
+
+                           $MSDownloadLink = "$($CreatedDownloadLink.DownloadLink)$OldOSVer"
+                           write-host "Info: Download link is created: $($MSDownloadLink)"
+                           Log -Message "Download link is created: $($MSDownloadLink)" -type 1 -LogFile $LogFile -Component Webrequest
+
+
+                            $Request = [System.Net.WebRequest]::Create($MSDownloadLink)
+	                        $Request.AllowAutoRedirect = $false
+	                        $Request.Timeout = 9000
+	                        $Response = $Request.GetResponse()
+	                        if ($Response.ResponseUri) {
+			                [string]$ReturnedURL = $Response.GetResponseHeader("Location")
+
+                            # Check if URL contains .MSI if MSI are found it will return the value for download.                            
+                            if ([string]$ReturnedURL -match ".msi")
+                            {
+                                write-host "Info: MSI Found with OS Buildnumber $OldOSVer for $TrimModel, will contiune the process for downloading drivers now."
+                                Log -Message "MSI Found with OS Buildnumber $OldOSVer for $TrimModel, will contiune the process for downloading drivers now." -type 1 -LogFile $LogFile -Component Webrequest
+
+                                Break
+                            }
+                            
+                }
+
+            } 
+                
+        }
+    }
+    $Response.Close()    
        
         # Download MSI Package from Microsoft.
         try
