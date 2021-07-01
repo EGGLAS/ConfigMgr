@@ -31,8 +31,8 @@ param(
     [string]$OSVersion,
     [parameter(Mandatory=$False, HelpMessage = "Specify the name of BIOS password file.")]
 	[string]$BIOSPwd,
-    [Parameter(Mandatory=$False,HelpMessage='Specify Path to download to')]
-    [string]$DownloadPath = "TSCache",
+    [Parameter(Mandatory=$True,HelpMessage='Specify Path to download to')]
+    [string]$DownloadPath,
     [parameter(Mandatory = $false, HelpMessage = "PreCache True/False")]
 	[string]$PreCache,
     [Parameter(Mandatory=$False,HelpMessage='Specify Path to download to, Not in use yet')]
