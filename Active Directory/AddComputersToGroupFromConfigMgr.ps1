@@ -1,5 +1,5 @@
 ﻿<#
-    Author: Nicklas Eriksson, IT-center
+    Author: Nicklas Eriksson
     Date: 2022-02-10
     Purpose: 
     - Get Computers from a specific ConfigMgr collection and returning computername.
@@ -26,8 +26,9 @@ $CollectionID = "CM10000"
 $ADGroupName = "Test"
 $ComputerNamePrefix = "Test*"
 $LocalPath = "E:\Test"
-$LogFile = "$LocalPath" + "\" + "AddComputersToADGroupTest.log"
+$LogFile = "$LocalPath" + "\" + "AddComputersToADGroup.log"
 [int]$LogMaxSize = "2621440"
+$SizeMB = [System.Math]::Round((($LogMaxSize)/1MB),2) 
 
 # Site configuration
 $SiteCode = "CM1" # Site code 
@@ -59,7 +60,7 @@ Type: 1 = Normal, 2 = Warning (yellow), 3 = Error (red)
     $LogMessage | Out-File -Append -Encoding UTF8 -FilePath $LogFile
 }
 
-
+# Check if log file maximum file size has been reached.
 if (Test-Path -Path $LogFile)
 {
     if ((Get-Item -Path $LogFile).Length -gt $LogMaxSize)
@@ -91,8 +92,6 @@ $initParams = @{}
 #$initParams.Add("Verbose", $true) # Uncomment this line to enable verbose logging
 #$initParams.Add("ErrorAction", "Stop") # Uncomment this line to stop the script on any errors
 
-# Do not change anything below this line
-
 # Import the ConfigurationManager.psd1 module 
 if((Get-Module ConfigurationManager) -eq $null) {
     Import-Module "$($ENV:SMS_ADMIN_UI_PATH)\..\ConfigurationManager.psd1" @initParams 
@@ -111,7 +110,7 @@ $Date = Get-date -Format yyyy-MM-dd_HH-mm
 
 Write-Host "Script was loaded with the following settings:" -ForegroundColor Yellow
 Write-Host " - Version: $ScriptVersion" -ForegroundColor Yellow
-Write-Host " - Max Logsize: $LogMaxSize" -ForegroundColor Yellow
+Write-Host " - Max Logsize: $SizeMB MB" -ForegroundColor Yellow
 Write-Host "AD Settings:" -ForegroundColor Yellow
 Write-Host " - AD-group: $ADGroupName" -ForegroundColor Yellow
 Write-host "ConfigMgr settings:" -ForegroundColor Yellow 
@@ -121,7 +120,7 @@ Write-host " - CollectionID: $CollectionID" -ForegroundColor Yellow
 
 Log -Message "Script was loaded with the following settings:" -type 1 -Component "Script" -LogFile $LogFile
 Log -Message " - Version: $ScriptVersion" -type 1 -Component "Script" -LogFile $LogFile
-Log -Message " - Max Logsize: $LogMaxSize" -type 1 -Component "Script" -LogFile $LogFile
+Log -Message " - Max Logsize: $SizeMB MB" -type 1 -Component "Script" -LogFile $LogFile
 Log -Message "AD settings:" -type 1 -Component "Script" -LogFile $LogFile
 Log -Message " - AD-group: $ADGroupName" -type 1 -Component "Script" -LogFile $LogFile
 Log -Message "ConfigMgr settings:" -type 1 -Component "Script" -LogFile $LogFile
@@ -137,17 +136,37 @@ Log -Message "Getting all computers from collection ID: $CollectionID" -type 1 -
 Log -Message " - Filtering computers that starts with the prefix: $ComputerNamePrefix" -type 1 -Component "Script" -LogFile $LogFile
 
 $AllComputers = Get-CMDevice -CollectionId "$CollectionID" -Fast | Where-Object Name -like $ComputerNamePrefix | Select-Object -Property Name
-Write-host " - Count computers in the collection: $($AllComputers.count)" -ForegroundColor Yellow
-Log -Message " - Count computers in the collection: $($AllComputers.count)" -type 1 -Component "Script" -LogFile $LogFile
+Write-host " - Computer count in the collection: $($AllComputers.count)" -ForegroundColor Yellow
+Log -Message " - Computer count in the collection: $($AllComputers.count)" -type 1 -Component "Script" -LogFile $LogFile
 
 
 # need to set a different location to run AD module.
 Set-Location -Path $LocalPath 
 
 # Get AD-group members and select Name from the members.
-$CurrentADMembers = Get-ADGroupMember -Identity $ADGroupName | select Name
-Write-host "Comparing objects in $CollectionID with AD-group $ADGroupName" -ForegroundColor Yellow
-Log -Message "Comparing objects in ConfigMgr $CollectionID with AD-group $ADGroupName" -type 1 -Component "Script" -LogFile $LogFile
+try
+{
+    Write-host "Retriving members from AD-group: $ADGroupName" -ForegroundColor Yellow
+    Log -Message "Retriving members from AD-group: $ADGroupName" -type 1 -Component "Script" -LogFile $LogFile
+
+    # Get AD-group members and select Name from the members.
+    $CurrentADMembers = Get-ADGroupMember -Identity $ADGroupName -ErrorAction Stop | select Name
+    Write-host " - Successfully found $($CurrentADMembers.Count) members in the group" -ForegroundColor Yellow
+    Log -Message " - Successfully found $($CurrentADMembers.Count) members in the group" -type 1 -Component "Script" -LogFile $LogFile
+}
+catch 
+{
+    Write-Host " - Could not retrive AD-group: $ADGroupName" -ForegroundColor Red
+    Write-Host " - Error code: $($_.Exception.Message)" -ForegroundColor Red
+
+    Log -Message " - Could not retrive AD-group: $ADGroupName" -Type 3 -Component "Error" -LogFile $LogFile
+    Log -Message " - Error code: $($_.Exception.Message)" -Type 3 -Component "Error" -LogFile $LogFile
+
+}
+
+
+Write-host "Comparing objects with ConfigMgr collection id $CollectionID and with AD-group $ADGroupName" -ForegroundColor Yellow
+Log -Message "Comparing objects with ConfigMgr collection id $CollectionID and with AD-group $ADGroupName" -type 1 -Component "Script" -LogFile $LogFile
 
 $RemoveCompare = Compare-Object -ReferenceObject $AllComputers.Name -DifferenceObject $CurrentADMembers.Name | Where-Object SideIndicator -EQ "=>" | select Inputobject, Sideindicator
 $AddToADGroupCompare = Compare-Object -ReferenceObject $AllComputers.Name -DifferenceObject $CurrentADMembers.Name | Where-Object SideIndicator -EQ "<=" | select Inputobject, Sideindicator
@@ -181,7 +200,7 @@ else
 {
     Write-host "No computers should be removed from the AD-group: $ADGroupName" -ForegroundColor Yellow
     Log -Message "No computers should be removed from the AD-group: $ADGroupName" -type 1 -Component "Script" -LogFile $LogFile
-    2
+    
 }
 
 
