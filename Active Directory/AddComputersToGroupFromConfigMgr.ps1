@@ -6,6 +6,8 @@
     - Check against an AD-group and removes computers from that specific AD-group if they are no longer includede in the collection. 
     - Add computers that are members of the collection to the AD-group.
     - Write everything to a logfile.
+    - Write if the computer gets added or removed from the AD-group to a csv file.
+
 
     1.0 - 2022-02-10 - Nicklas Eriksson - Script was created.
     1.1 - 2022-02-10 - NicklaS Eriksson - Updated the script with only add the computers objects that does not exists in the ad-group.
