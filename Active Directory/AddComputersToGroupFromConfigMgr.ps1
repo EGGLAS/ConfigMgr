@@ -19,8 +19,7 @@
 
     How to run the script:
      - Change the variables to suit your enivorment and use case. 
-    .\AddComputersToLog4jADGroup_param.ps1 -LocalPath "E:\Test" -ADGroupName "Test" -CollectionID "CM100000" -ComputerNamePrefix "Test*" -SiteCode "CM1" -ProviderMachineName "server.test.local" -OutCSVFile True
-    
+    .\AddComputersToLog4jADGroup_param.ps1 -LocalPath "E:\Test" -ADGroupName "Test" -CollectionID "CM100000" -ComputerNamePrefix "Test*" -SiteCode "CM1" -ProviderMachineName "server.test.local" -OutCSVFile True    
 
 #>
 
@@ -110,8 +109,6 @@ if (Test-Path -Path $LogFile)
             Log -Message " - Error code: $($_.Exception.Message)" -Type 3 -Component "Error" -LogFile $LogFile
 
         }
-
-
     }
 }
 
@@ -132,7 +129,6 @@ if((Get-PSDrive -Name $SiteCode -PSProvider CMSite -ErrorAction SilentlyContinue
 
 # Set the current location to be the site code.
 Set-Location "$($SiteCode):\" @initParams
-
 
 $Date = Get-date -Format yyyy-MM-dd_HH-mm
 
@@ -166,7 +162,6 @@ Log -Message " - Filtering computers that starts with the prefix: $ComputerNameP
 $AllComputers = Get-CMDevice -CollectionId "$CollectionID" -Fast | Where-Object Name -like $ComputerNamePrefix | Select-Object -Property Name
 Write-host " - Computer count in the collection: $($AllComputers.count)" -ForegroundColor Yellow
 Log -Message " - Computer count in the collection: $($AllComputers.count)" -type 1 -Component "Script" -LogFile $LogFile
-
 
 # Need to set a different location to run AD module.
 Set-Location -Path $LocalPath 
@@ -219,7 +214,7 @@ if ($RemoveCompare.SideIndicator -eq "=>")
             Log -Message " - Error code: $($_.Exception.Message)" -Type 3 -Component "Error" -LogFile $LogFile
 
        }
-               # Out computername to CSV-file.
+        # Write computername to CSV-file.
         if ($OutCSVFile -eq "True")
         {
             try
@@ -232,7 +227,6 @@ if ($RemoveCompare.SideIndicator -eq "=>")
             }
             
                 UpdateCSVFile
-
         }
         catch 
         {
@@ -242,7 +236,6 @@ if ($RemoveCompare.SideIndicator -eq "=>")
                 Log -Message " - Could not update csvfile : $CSVFile" -Type 3 -Component "Error" -LogFile $LogFile
                 Log -Message " - Error code: $($_.Exception.Message)" -Type 3 -Component "Error" -LogFile $LogFile
         }
-
 
     }
 
@@ -307,8 +300,7 @@ if ($AddToADGroupCompare.SideIndicator -eq "<=")
                 Log -Message " - Error code: $($_.Exception.Message)" -Type 3 -Component "Error" -LogFile $LogFile
         }
 
-
-    }
+        }
 
     }
 
