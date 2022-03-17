@@ -85,7 +85,7 @@ $Softpaq = "SOFTPAQ"
 $HPIALogFile = $TSEnvironment.Value("_SMSTSLogPath") + "\HPIAInstall" # Log location for HPIA install.
 
 $Scriptversion = 1.6
-Log -Message "HPIA is about to start..." -type 1 -Component "HPIA" -Component "HPIA" -type 1 -LogFile $LogFile
+Log -Message "HPIA is about to start..." -Component "HPIA" -type 1 -LogFile $LogFile
 Log -Message "Loading script with version: $Scriptversion" -Component "HPIA" -type 1 -LogFile $LogFile
 
 # Attempt to read TSEnvironment variable AdminserviceUser
@@ -145,7 +145,7 @@ log -Message "Will use this filter to find and download the correct driver packa
 try {
         log -Message "Trying to access adminservice with the following URL: $($AdminServiceUri)" -Type 1 -Component HPIA -LogFile $LogFile				        
         $AdminServiceResponse = Invoke-RestMethod $AdminServiceUri -Method Get -Credential $Credential -ErrorAction Stop
-        log -Message "Found the correct driver package from adminservice" -Type 1 -Component HPIA -LogFile $LogFile
+        log -Message "Found the correct driver package from adminservice:" -Type 1 -Component HPIA -LogFile $LogFile
         log -Message " - Grabbing propertys Name and PackageID from the driverpackage" -Type 1 -Component HPIA -LogFile $LogFile				  
         $HPIAPackage = $AdminServiceResponse.value  | Select-Object Name,PackageID 
         log -Message "  - Name: $($HPIAPackage.Name)" -Type 1 -Component HPIA -LogFile $LogFile				
@@ -257,7 +257,7 @@ function Invoke-Executable {
 	}
 
 # Download Drivers with OSDDownloadContent
-log -message "Starting package content download process, this might take some time" -Type 1 -Component HPIA -LogFile $LogFile
+log -message "Starting package content download process, this might take some time..." -Type 1 -Component HPIA -LogFile $LogFile
 $ReturnCode = Invoke-Executable -FilePath (Join-Path -Path $env:windir -ChildPath "CCM\OSDDownloadContent.exe")
 
     # Match on return code
