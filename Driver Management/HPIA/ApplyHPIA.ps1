@@ -69,17 +69,12 @@ Type: 1 = Normal, 2 = Warning (yellow), 3 = Error (red)
     $LogMessage | Out-File -Append -Encoding UTF8 -FilePath $LogFile
 }
 
-$Scriptversion = 1.6
-Log -Message "HPIA is about to start..." -type 1 -Component "HPIA" -Component "HPIA" -type 1 -LogFile $LogFile
-Log -Message "Loading script with version: $Scriptversion" -Component "HPIA" -type 1 -LogFile $LogFile
 
 # Construct TSEnvironment object
 try {
     $TSEnvironment = New-Object -ComObject Microsoft.SMS.TSEnvironment -ErrorAction Stop
 }
 catch [System.Exception] {
-    Log -Message "Unable to construct Microsoft.SMS.TSEnvironment object" -Type 3 -Component "Error" -LogFile $LogFile
-    Log -Message "Error code: $($_.Exception.Message)" -Type 3 -Component "Error" -LogFile $LogFile
 
     Write-Warning -Message "Unable to construct Microsoft.SMS.TSEnvironment object" ; exit 3
 }
@@ -88,6 +83,10 @@ catch [System.Exception] {
 $LogFile = $TSEnvironment.Value("_SMSTSLogPath") + "\ApplyHPIA.log" # ApplyHPIA log location 
 $Softpaq = "SOFTPAQ"
 $HPIALogFile = $TSEnvironment.Value("_SMSTSLogPath") + "\HPIAInstall" # Log location for HPIA install.
+
+$Scriptversion = 1.6
+Log -Message "HPIA is about to start..." -type 1 -Component "HPIA" -Component "HPIA" -type 1 -LogFile $LogFile
+Log -Message "Loading script with version: $Scriptversion" -Component "HPIA" -type 1 -LogFile $LogFile
 
 # Attempt to read TSEnvironment variable AdminserviceUser
 $AdminserviceUser = $TSEnvironment.Value("AdminserviceUser")
