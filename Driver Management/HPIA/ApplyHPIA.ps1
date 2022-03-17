@@ -1,14 +1,15 @@
-<# Author: Nicklas Eriksson & Daniel Gråhns
+<# Author: Nicklas Eriksson & Daniel Grahns
  Date: 2021-02-11
  Purpose: Download HP Drivers and apply HPIA drivers during OS Deployment or OS Upgrade.
 
  Version: 1.5
  Changelog: 1.0 - 2021-02-11 - Nicklas Eriksson -  Script was created. Purpose to replace the old script with purpose to use one script to handle downloading of drivers and install HPIA.
-            1.1 - 2021-04-30 - Daniel Gråhns - added a "c" that was missing just because I wanted to be in the changelog ;P and some other stuff that was hillarious ("reboob"), popup added on error.
-            1.2 - 2021-04-30 - Nicklas Eriksson & Daniel Gråhns -Added PreCache function.
-            1.3 - 2021-05-04 - Nicklas Eriksson & Daniel Gråhns - Fixed Logging and Errorhandling - Fixed parameters and PreCahche (needs to be tested)
-            1.4 - 2021-05-05 - Daniel Gråhns - Tested Precache. 
-            1.5 - 2021-06-14 - Nicklas Eriksson - Bug fix and added more logging. 
+            1.1 - 2021-04-30 - Daniel Grahns - added a "c" that was missing just because I wanted to be in the changelog ;P and some other stuff that was hillarious ("reboob"), popup added on error.
+            1.2 - 2021-04-30 - Nicklas Eriksson & Daniel Grahns -Added PreCache function.
+            1.3 - 2021-05-04 - Nicklas Eriksson & Daniel Grahns - Fixed Logging and Errorhandling - Fixed parameters and PreCahche (needs to be tested)
+            1.4 - 2021-05-05 - Daniel Grahns - Tested Precache. 
+            1.5 - 2021-06-14 - Nicklas Eriksson - Bug fix and added some more log entries. 
+            1.6 - 2022-03-17 - Nicklas Eriksson - Added option to set an custom TS varible to get which package that was download so it can be used to tatto the registry later in your TS. Added some more logging and error handling.
 TO-Do
  - Fallback to latest support OS?
  - Should be able to run script in debug mode.
@@ -18,7 +19,7 @@ ApplyHPIA.ps1 -Siteserver "server.domain.local" -OSVersion "20H2" -DownloadPath 
 ApplyHPIA.ps1 -Siteserver "server.domain.local" -OSVersion "20H2" -Precache "PreCache"
 
 NOTES 
- - Clean-up install files that are creating under C:\HPIA - Add Remove-Item -Path "C:\HPIA" in task sequence if you want to clean-up, run as seperate step in the task sequence. 
+ - Clean-up install files that are creating under C:\HPIA - Add Remove-Item -Path "C:\HPIA" in task sequence if you want to clean-up, seperate step. 
 
 Big shoutout and credit to Maurice Dualy and Nikolaj Andersen for their outstanding work with  Modern Driver Management for making this solution possible. 
 Some code are borrowed from their awesome solution to making this solution work.
@@ -37,7 +38,9 @@ param(
     [parameter(Mandatory = $false, HelpMessage = "PreCache True/False")]
 	[string]$PreCache,
     [Parameter(Mandatory=$False,HelpMessage='Specify Path to download to, Not in use yet')]
-    [string]$PreCacheDownloadPath = "CCMCache"
+    [string]$PreCacheDownloadPath = "CCMCache",
+    [Parameter(Mandatory=$False,HelpMessage='Specify Custom TS Variable')]
+    [string]$CustomTSVariable
 )
 
 
@@ -66,15 +69,18 @@ Type: 1 = Normal, 2 = Warning (yellow), 3 = Error (red)
     $LogMessage | Out-File -Append -Encoding UTF8 -FilePath $LogFile
 }
 
-$Scriptversion = 1.5
-Log -Message "HPIA is about to start..." -type 1 -Component "HPIA" -LogFile $LogFile
-Log -Message "Loading script with version: $Scriptversion" -type 1 -Component "HPIA" -LogFile $LogFile
+$Scriptversion = 1.6
+Log -Message "HPIA is about to start..." -type 1 -Component "HPIA" -Component "HPIA" -type 1 -LogFile $LogFile
+Log -Message "Loading script with version: $Scriptversion" -Component "HPIA" -type 1 -LogFile $LogFile
 
 # Construct TSEnvironment object
 try {
     $TSEnvironment = New-Object -ComObject Microsoft.SMS.TSEnvironment -ErrorAction Stop
 }
 catch [System.Exception] {
+    Log -Message "Unable to construct Microsoft.SMS.TSEnvironment object" -Type 3 -Component "Error" -LogFile $LogFile
+    Log -Message "Error code: $($_.Exception.Message)" -Type 3 -Component "Error" -LogFile $LogFile
+
     Write-Warning -Message "Unable to construct Microsoft.SMS.TSEnvironment object" ; exit 3
 }
 
@@ -125,25 +131,27 @@ $EncryptedPassword = ConvertTo-SecureString -String $Password -AsPlainText -Forc
 $Credential = New-Object -TypeName System.Management.Automation.PSCredential -ArgumentList @($AdminserviceUser, $EncryptedPassword)
 
 # Variables for ConfigMgr Adminservice.        
+#$Filter = "HPIA-20H2-HP ProBook 430 G5 8536" # Only for test purpose. 
 $Filter = "HPIA-$OSversion-" + (Get-WmiObject -Class:Win32_ComputerSystem).Model + " " + (Get-WmiObject -Class:Win32_BaseBoard).Product
 $FilterPackages = "/SMS_Package?`$filter=contains(Name,'$($Filter)')"
 $AdminServiceURL = "https://{0}/AdminService/wmi" -f $SiteServer
 $AdminServiceUri = $AdminServiceURL + $FilterPackages
 
-log -Message "Computermodel: $((Get-WmiObject -Class:Win32_ComputerSystem).Model)" -Type 1 -Component HPIA -LogFile $LogFile				        
-log -Message "Baseboard: $((Get-WmiObject -Class:Win32_BaseBoard).Product)" -Type 1 -Component HPIA -LogFile $LogFile
-log -Message "OSVersion: $($OSVersion)" -Type 1 -Component HPIA -LogFile $LogFile				        
-log -Message "Will use this filter to attempt to get the correct driver package from adminservice: $($Filter)" -Type 1 -Component HPIA -LogFile $LogFile				        
+log -Message "Gathering information from the computer:" -Type 1 -Component HPIA -LogFile $LogFile				        
+log -Message " - Computermodel: $((Get-WmiObject -Class:Win32_ComputerSystem).Model)" -Type 1 -Component HPIA -LogFile $LogFile				        
+log -Message " - Baseboard: $((Get-WmiObject -Class:Win32_BaseBoard).Product)" -Type 1 -Component HPIA -LogFile $LogFile
+log -Message " - OSVersion: $($OSVersion)" -Type 1 -Component HPIA -LogFile $LogFile				        
+log -Message "Will use this filter to find and download the correct driver package from adminservice: $($Filter)" -Type 1 -Component HPIA -LogFile $LogFile				        
 
 try {
         log -Message "Trying to access adminservice with the following URL: $($AdminServiceUri)" -Type 1 -Component HPIA -LogFile $LogFile				        
         $AdminServiceResponse = Invoke-RestMethod $AdminServiceUri -Method Get -Credential $Credential -ErrorAction Stop
-        log -Message "Found the correct driver package from adminservice: $($AdminServiceResponse.count)" -Type 1 -Component HPIA -LogFile $LogFile
-        log -Message "Grabbing Name and PackageID from driverpackage" -Type 1 -Component HPIA -LogFile $LogFile				  
+        log -Message "Found the correct driver package from adminservice" -Type 1 -Component HPIA -LogFile $LogFile
+        log -Message " - Grabbing propertys Name and PackageID from the driverpackage" -Type 1 -Component HPIA -LogFile $LogFile				  
         $HPIAPackage = $AdminServiceResponse.value  | Select-Object Name,PackageID 
-        log -Message "Name: $($HPIAPackage.Name)" -Type 1 -Component HPIA -LogFile $LogFile				
-        log -Message "PackageID: $($HPIAPackage.PackageID)" -Type 1 -Component HPIA -LogFile $LogFile				
-        }
+        log -Message "  - Name: $($HPIAPackage.Name)" -Type 1 -Component HPIA -LogFile $LogFile				
+        log -Message "  - PackageID: $($HPIAPackage.PackageID)" -Type 1 -Component HPIA -LogFile $LogFile				
+    }
 catch [System.Security.Authentication.AuthenticationException] {
 					
 	# Attempt to ignore self-signed certificate binding for AdminService
@@ -160,8 +168,8 @@ catch [System.Security.Authentication.AuthenticationException] {
         log -Message "Trying to access adminservice with following URL: $($AdminServiceUri)" -Type 1 -Component HPIA -LogFile $LogFile				
         $AdminServiceResponse = Invoke-RestMethod $AdminServiceUri -Method Get -Credential $Credential -ErrorAction Stop 
         $HPIAPackage = $AdminServiceResponse.value  | Select-Object Name,PackageID 
-        log -Message "Name: $($HPIAPackage.Name)" -Type 1 -Component HPIA -LogFile $LogFile				
-        log -Message "PackageID: $($HPIAPackage.PackageID)" -Type 1 -Component HPIA -LogFile $LogFile				
+        log -Message " - Name: $($HPIAPackage.Name)" -Type 1 -Component HPIA -LogFile $LogFile				
+        log -Message " - PackageID: $($HPIAPackage.PackageID)" -Type 1 -Component HPIA -LogFile $LogFile				
 
 	}
 	catch [System.Exception] {
@@ -192,6 +200,24 @@ Log -Message "Setting OSDDownloadDownloadPackages: $($DownloadPath)" -type 1 -Lo
 Log -Message "Setting OSDDownloadContinueDownloadOnError: 1" -type 1 -LogFile $LogFile -Component HPIA
 Log -Message "Setting OSDDownloadDownloadPackages: $($HPIAPackage.PackageID)" -type 1 -LogFile $LogFile -Component HPIA
 Log -Message "Setting OSDDownloadDestinationVariable: $($Softpaq)" -type 1 -LogFile $LogFile -Component HPIA
+
+if (-not [string]::IsNullOrEmpty($CustomTSVariable))
+{
+    try
+    {
+        $TSEnvironment.value("$CustomTSVariable") = "$($HPIAPackage.PackageID)"
+        Log -Message "Setting ($CustomTSVariable): "$($HPIAPackage.PackageID)"" -type 1 -LogFile $LogFile -Component HPIA
+
+    }
+    catch [DivideByZeroException]
+    {
+    
+        Log -Message "Could not set $($CustomTSVariable): $($HPIAPackage.PackageID)" -Type 3 -Component "Error" -LogFile $LogFile
+        Log -Message "Error code: $($_.Exception.Message)" -Type 3 -Component "Error" -LogFile $LogFile
+
+    }
+
+}
 
 
 function Invoke-Executable {
@@ -255,16 +281,20 @@ $ReturnCode = Invoke-Executable -FilePath (Join-Path -Path $env:windir -ChildPat
 Log -Message "Setting TS variable Softpaq01: $($ContentPath)" -type 1 -LogFile $LogFile -Component HPIA
 
 log -Message "Starting to reset the task sequence variable that were used to download drivers" -Type 1 -Component HPIA -LogFile $LogFile
-$TSEnvironment.Value("OSDDownloadDownloadPackages") = [System.String]::Empty	
-$TSEnvironment.Value("OSDDownloadDestinationLocationType") = [System.String]::Empty
-$TSEnvironment.Value("OSDDownloadDestinationVariable") = [System.String]::Empty
-$TSEnvironment.Value("OSDDownloadDestinationPath") = [System.String]::Empty
-
 log -Message "Setting task sequence variable OSDDownloadDownloadPackages to a blank value" -Type 1 -Component HPIA -LogFile $LogFile
+$TSEnvironment.Value("OSDDownloadDownloadPackages") = [System.String]::Empty
+		
+# Set OSDDownloadDestinationLocationType
 log -Message "Setting task sequence variable OSDDownloadDestinationLocationType to a blank value" -Type 1 -Component HPIA -LogFile $LogFile
+$TSEnvironment.Value("OSDDownloadDestinationLocationType") = [System.String]::Empty
+		
+# Set OSDDownloadDestinationVariable
 log -Message "Setting task sequence variable OSDDownloadDestinationVariable to a blank value" -Type 1 -Component HPIA -LogFile $LogFile
+$TSEnvironment.Value("OSDDownloadDestinationVariable") = [System.String]::Empty
+		
+# Set OSDDownloadDestinationPath
 log -message "Setting task sequence variable OSDDownloadDestinationPath to a blank value" -Type 1 -Component HPIA -LogFile $LogFile
-
+$TSEnvironment.Value("OSDDownloadDestinationPath") = [System.String]::Empty
 
  if ([string]::IsNullOrEmpty($PreCache))
  {
@@ -342,12 +372,14 @@ log -message "Setting task sequence variable OSDDownloadDestinationPath to a bla
         Log -Message "Failed to start the HPImageAssistant.exe: $($_.Exception.Message)" -Component "HPIA" -type 3 -Logfile $Logfile
         Exit $($_.Exception.Message)
     }
+    
+    Log -Message "HPIA process is now completed and the following package has been installed to the computer: $($HPIAPackage.Name)" -Component "HPIA" -Type 1 -logfile $LogFile
 
 }
 
 else {
-    Log -Message "Script is running as Precache, skipping to install HPIA." -Type 2 -Component "HPIA" -logfile $LogFile
-
+    Log -Message "Script is running as Precache, skipping to install HPIA." -Type 1 -Component "HPIA" -logfile $LogFile
 }
+Log -Message "---------------------------------------------------------------------------------------------------------------------------------------------------" -type 1 -Component "HPIA" -LogFile $LogFile
 
-Log -Message "HPIA process is now completed and the following package has been installed to the computer: $($HPIAPackage.Name)" -Component "HPIA" -Type 1 -logfile $LogFile
+
