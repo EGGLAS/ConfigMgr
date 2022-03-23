@@ -7,6 +7,7 @@ The tool support both Windows 10 and 11.
 
 Version history:
 1.0 - 2021-02-11 - Nicklas Eriksson -  Script Edited and fixed Daniels crappy hack and slash code :)
+
 1.1 - 2021-02-18 - Nicklas Eriksson - Added HPIA to download to HPIA Download instead to Root Directory, Added BIOSPwd should be copy to HPIA so BIOS upgrades can be run during OSD. 
 1.2 - 2021-04-14 - Daniel GrÃ¥hns - Added check if Offline folder is created
 1.3 - 2021-04-27 - Nicklas Eriksson - Completed the function so the script also downloaded BIOS updates during sync.
