@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Configuration>
+	<Install Name="InstallPath" Value="C:\HPIA" />	<!-- Install path for the HPIA script. -->
+	<Install Name="InstallHPIA" Enabled="True" Value="C:\HPIA" />	<!--Specify if you want HPIA to autoupdate and install location -->
+	<Install Name="ConfigMgrModule" Value="C:\Program Files\Microsoft Configuration Manager\AdminConsole\bin\ConfigurationManager.psd1" />	<!--Path to ConfigMgr module-->
+	<Install Name="RepositoryPath" Value="\\Test.local\Sources\OSD\DriverPkg\HPIA" />	<!--Download path for the drivers-->
+	<Install Name="SupportComputerModels" Value="C:\HPIA\import-models.csv" />	<!--Specify location to CSV file for the supported computer models-->
+	<Setting Name="SiteCode" Value="CM1" />	<!--Speicify SiteCode for ConfigMgr-->
+    <Setting Name="SiteServer" Value="Test.local" />	<!--Speicify Site Server for ConfigMgr-->
+	<Setting Name="CMFolderPath" Value="CM1:\Package\Driver Packages\HPIA" />	<!-- Folder path in Configuration Manager -->
+	<Setting Name="DPGroupName" Value="Test" />	<!-- Set DP GroupName -->
+	<Option Name="MigratePaths" Enabled="False" Value="21H2,20H2,1909,1809" />	<!--DO NOT USE this unless you are SURE you want to move all old packages and sources to new locations, Important test one OS build before-->
+	<Option Name="InstallHPCML" Enabled="True" />	<!--Specify if you want HPCML to autoupdate from Powershell Gallery-->
+	<Option Name="EnableSMTP" Enabled="False" SMTP="labb.test.com" Adress="labb@labb.com" />	<!-- Specify SMTP and e-postadress -->
+	<HPIAFilter Name="Dock" Enabled="True" />	<!-- Enables Driver download for dock -->
+	<HPIAFilter Name="Driver" Enabled="True" />	<!-- Enables Driver download for drivers -->
+	<HPIAFilter Name="Firmware" Enabled="True" />	<!-- Enables Driver download for firmware -->
+	<HPIAFilter Name="Driverpack" Enabled="False" />	<!-- Enables Driver download for driverpack -->
+	<HPIAFilter Name="BIOS" Enabled="True" />	<!-- Enables HPIA to download for BIOS -->
+</Configuration>
