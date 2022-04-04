@@ -11,9 +11,7 @@ Script for Task Sequence after ConfigMgr client installed to download all softpa
                                 - Added OSVersion, OSBuild and LTSC as parameters.
                                 - Changed BIOS to handle trough task sequences variable.
 
-How to run: Add run poweshell step in Task Sequence and.
-
-Add task sequence variable with HP BIOSPassword, the variable name is HPIA_BIOSPassword.
+How to run: Add run poweshell step in Task Sequence and add task sequence variable with HP BIOSPassword, the variable name is HPIA_BIOSPassword..
 
     - .\ApplyHPIAOnline - OSVersion "Win10" -OSBuild "21H2" -Cleanup 
     - .\ApplyHPIAOnline - OSVersion "Win10" -OSBuild "21H2" -Cleanup -LTSC
@@ -47,12 +45,9 @@ catch [System.Exception] {
     Write-Warning -Message "Unable to construct Microsoft.SMS.TSEnvironment object" ; exit 3
 }
 
-
 $BIOSPassword = $TSEnvironment.Value("HPIA_BIOSPassword")
 
 [System.Environment]::SetEnvironmentVariable('biospass',"$BIOSPassword") #Set BIOS Password as environment variable, will be cleared on last line in script.
-
-
 
 $Baseboard = (Get-CimInstance -ClassName win32_baseboard).Product
 $Computersystem = (Get-CimInstance -ClassName win32_computersystem).Model
@@ -161,9 +156,8 @@ else
     CMTraceLog -Message "$ModuleName already Installed with $($Status.Version)" -Type 1 -LogFile $LogFile
     }
 
-
 $HPIAPath = "C:\HPIA\"
-Set-Location -Path "C:\HPIA\"
+Set-Location -Path $HPIAPath
 
 Install-HPImageAssistant -Extract -DestinationPath "C:\HPIA" -ErrorAction stop
     if (Test-Path "C:\HPIA\HPImageAssistant.exe")
