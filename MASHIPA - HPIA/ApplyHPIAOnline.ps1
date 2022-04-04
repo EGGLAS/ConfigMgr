@@ -48,7 +48,7 @@ catch [System.Exception] {
 }
 
 
-$BIOSPassword = $TSEnvironment.Value("HPIA_BIOSPAssword")
+$BIOSPassword = $TSEnvironment.Value("HPIA_BIOSPassword")
 
 [System.Environment]::SetEnvironmentVariable('biospass',"$BIOSPassword") #Set BIOS Password as environment variable, will be cleared on last line in script.
 
@@ -293,6 +293,7 @@ Set-Location "C:\HPIA\"
         }
 
 # Clear task sequence variable for HP Password.
+$TSEnvironment.Value("HPIA_BIOSPassword") = [System.String]::Empty
 
 
 Log -Message "HPIA script is now completed." -Component "HPIA" -Type 1 -logfile $LogFile
