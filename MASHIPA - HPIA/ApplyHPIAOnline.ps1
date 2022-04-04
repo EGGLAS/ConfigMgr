@@ -242,7 +242,7 @@ Set-Location "C:\HPIA\"
 
         # Start HPIA Update process 
         Log -Message "Starting HPIA installation." -type 1 -Component "HPIA" -LogFile $LogFile
-        $HPIAProcess = Start-Process -Wait -FilePath "HPImageAssistant.exe" -WorkingDirectory "C:\HPIA" -ArgumentList "$Argument" -PassThru
+        $HPIAProcess = Start-Process -Wait -FilePath "HPImageAssistant.exe" -WorkingDirectory $SoftpaqDownloadFolder -ArgumentList "$Argument" -PassThru
         $Handle = $HPIAProcess.Handle # Cache Info $HPIAProcess.Handle
         $HPIAProcess.WaitForExit();
         $HPIAProcess.ExitCode
@@ -294,7 +294,6 @@ Set-Location "C:\HPIA\"
 
 # Clear task sequence variable for HP Password.
 $TSEnvironment.Value("HPIA_BIOSPassword") = [System.String]::Empty
-
 
 Log -Message "HPIA script is now completed." -Component "HPIA" -Type 1 -logfile $LogFile
 [System.Environment]::SetEnvironmentVariable('biospass','Secret')
