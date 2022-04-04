@@ -5,7 +5,7 @@
   Link to project: https://github.com/EGGLAS/ConfigMgr
   Created: 2021-02-11
   Latest updated: 2022-03-22
-  Current version: 2.0
+  Current version: 2.1
 
   Changelog: 1.0 - 2021-02-11 - Nicklas Eriksson -  Script Edited and fixed Daniels crappy hack and slash code :)
              1.1 - 2021-02-18 - Nicklas Eriksson - Added HPIA to download to HPIA Download instead to Root Directory, Added BIOSPwd should be copy to HPIA so BIOS upgrades can be run during OSD. 
@@ -38,7 +38,8 @@
                                 - Removed unused code
                                 - Added more logging to the log
                                 - Added more error handling to the script to be able to catch errors to the log file.
- 
+            2.1 - 2022-04-04 - Rickard Lundberg
+                                - Fixed bugg when offline folder is not created during first run, Invoke-RepositorySync to run after Set-RepositoryConfiguration. 
  Contact: Grahns.Daniel@outlook.com, erikssonnicklas@hotmail.com
  Twitter: Sigge_gooner 
  LinkedIn: https://www.linkedin.com/in/danielgrahns/
@@ -182,7 +183,7 @@ $XMLEnableSMTP = $Xml.Configuration.Option | Where-Object {$_.Name -like 'Enable
 #$XMLLogfile = $Xml.Configuration.Option | Where-Object {$_.Name -like 'Logfile'} | Select-Object -ExpandProperty 'Value'
 
 # Hardcoded variabels in the script.
-$ScriptVersion = "2.0"
+$ScriptVersion = "2.1"
 $LogFile = "$InstallPath\RepositoryUpdate.log" #Filename for the logfile.
 [int]$MaxLogSize = 9999999
 
@@ -725,11 +726,11 @@ foreach ($Model in $HPModelsTable) {
     
     try
     {
-        Invoke-RepositorySync -Quiet
 
         Set-RepositoryConfiguration -Setting OfflineCacheMode -CacheValue Enable
         Start-Sleep -s 15
         Set-RepositoryConfiguration -Setting OfflineCacheMode -CacheValue Enable
+        Invoke-RepositorySync -Quiet
 
         Log -Message "Repository sync for $($Model.Model) $($Model.ProdCode). OS: $($Model.WindowsVersion), $($Model.WindowsBuild) successful" -LogFile $LogFile -Component HPIA
         Print -Message "Repository sync for $($Model.Model) $($Model.ProdCode). OS: $($Model.WindowsVersion), $($Model.WindowsBuild) successful" -Indent 4 -Color Green
