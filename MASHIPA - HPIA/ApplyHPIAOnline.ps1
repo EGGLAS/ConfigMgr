@@ -45,7 +45,12 @@ catch [System.Exception] {
     Write-Warning -Message "Unable to construct Microsoft.SMS.TSEnvironment object" ; exit 3
 }
 
+# Get BIOSPassword from TS variable
 $BIOSPassword = $TSEnvironment.Value("HPIA_BIOSPassword")
+
+# Clear task sequence variable for HP Password.
+$TSEnvironment.Value("HPIA_BIOSPassword") = [System.String]::Empty
+
 
 [System.Environment]::SetEnvironmentVariable('biospass',"$BIOSPassword") #Set BIOS Password as environment variable, will be cleared on last line in script.
 
@@ -286,8 +291,6 @@ Set-Location "C:\HPIA\"
             $Errorcode = "Process exited with code $($HPIAProcess.ExitCode) . Expecting 0." 
         }
 
-# Clear task sequence variable for HP Password.
-$TSEnvironment.Value("HPIA_BIOSPassword") = [System.String]::Empty
 
 Log -Message "HPIA script is now completed." -Component "HPIA" -Type 1 -logfile $LogFile
 [System.Environment]::SetEnvironmentVariable('biospass','Secret')
