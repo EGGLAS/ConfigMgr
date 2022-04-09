@@ -222,8 +222,8 @@ catch [System.Security.Authentication.AuthenticationException] {
 	}
 	catch [System.Exception] {
 		# Throw error code
-		log -Message "Failed to retrive driver package from ConfigMgr Adminservice for $($Filter)." -Type 3 -Component HPIA -LogFile $LogFile				
-        $Errorcode = "Failed to retrive driver package from ConfigMgr Adminservice for $($Filter)."
+		log -Message "Failed to retrive driver package from ConfigMgr Adminservice for $($Filter)" -Type 3 -Component HPIA -LogFile $LogFile				
+        $Errorcode = "Failed to retrive driver package from ConfigMgr Adminservice for $($Filter), please check logfile $LogFile for more information."
         (new-object -ComObject Microsoft.SMS.TsProgressUI).CloseProgressDialog() ; (new-object -ComObject wscript.shell).Popup("$($Errorcode) ",0,'Warning',0x0 + 0x30) ; Exit 0
         Throw
 	}
@@ -231,7 +231,7 @@ catch [System.Security.Authentication.AuthenticationException] {
 catch {
 	# Throw error code
 		log -Message "Failed to retrive driver package from ConfigMgr Adminservice for $($Filter)." -Type 3 -Component HPIA -LogFile $LogFile				
-        $Errorcode = "Failed to retrive driver package from ConfigMgr Adminservice for $($Filter)."
+        $Errorcode = "Failed to retrive driver package from ConfigMgr Adminservice for $($Filter), please check logfile $LogFile for more information."
         (new-object -ComObject Microsoft.SMS.TsProgressUI).CloseProgressDialog() ; (new-object -ComObject wscript.shell).Popup("$($Errorcode) ",0,'Warning',0x0 + 0x30) ; Exit 0
         Throw
 }

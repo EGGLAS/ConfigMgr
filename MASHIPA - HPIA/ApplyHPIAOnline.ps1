@@ -7,7 +7,7 @@ Script for Task Sequence after ConfigMgr client installed to download all softpa
 
  Version: 0.9
  Changelog:  0.9 - 2022-04-01 - Daniel Gråhns - Script Created
-             1.0 - 2022-04-04 - Nicklas Eriksson - 
+             1.0 - 2022-04-04 - Nicklas Eriksson - THIS VERSION IS STILL IN BETA!
                                 - Added OSVersion, OSBuild and LTSC as parameters.
                                 - Changed BIOS to handle trough task sequences variable.
 
@@ -45,12 +45,47 @@ catch [System.Exception] {
     Write-Warning -Message "Unable to construct Microsoft.SMS.TSEnvironment object" ; exit 3
 }
 
-# Get BIOSPassword from TS variable
+# Variables
+$ScriptVersion = "1.0"
+$HPIAPath = "C:\HPIA"
+$HPCMLLogFile = "$HPIAPath" + "\" + "HPCMLInstall.log"
+$HPIALogFile = $HPIAPath + "\"
+$SoftpaqDownloadFolder = "$HPIAPath"
+
+# Get TS variable
+$LogFile = $TSEnvironment.Value("_SMSTSLogPath") + "\ApplyHPIAOnline.log" # ApplyHPIA log location 
 $BIOSPassword = $TSEnvironment.Value("HPIA_BIOSPassword")
 
 # Clear task sequence variable for HP Password.
 $TSEnvironment.Value("HPIA_BIOSPassword") = [System.String]::Empty
 
+function Log {
+    Param (
+    [Parameter(Mandatory=$false)]
+    $Message,
+    [Parameter(Mandatory=$false)]
+    $ErrorMessage,
+    [Parameter(Mandatory=$false)]
+    $Component,
+    [Parameter(Mandatory=$false)]
+    [int]$Type,                                                    
+    [Parameter(Mandatory=$true)]
+    $LogFile
+                             )
+    <#
+    Type: 1 = Normal, 2 = Warning (yellow), 3 = Error (red)
+    #>
+    $Time = Get-Date -Format "HH:mm:ss.ffffff"
+    $Date = Get-Date -Format "MM-dd-yyyy"
+    if ($ErrorMessage -ne $null) {$Type = 3}
+    if ($Component -eq $null) {$Component = " "}
+    if ($Type -eq $null) {$Type = 1}
+    $LogMessage = "<![LOG[$Message $ErrorMessage" + "]LOG]!><time=`"$Time`" date=`"$Date`" component=`"$Component`" context=`"`" type=`"$Type`" thread=`"`" file=`"`">"
+    $LogMessage | Out-File -Append -Encoding UTF8 -FilePath $LogFile
+}
+
+Log -Message "ApplyHPIAOnline is about to start..." -type 1 -Component "HPIA" -LogFile $LogFile
+Log -Message "Loading script with version: $Scriptversion" -type 1 -Component "HPIA" -LogFile $LogFile
 
 [System.Environment]::SetEnvironmentVariable('biospass',"$BIOSPassword") #Set BIOS Password as environment variable, will be cleared on last line in script.
 
@@ -90,45 +125,14 @@ $ModuleName = "HPCMSL"
 Install-Module -Name $ModuleName -Force -AcceptLicense -SkipPublisherCheck
 Import-Module -Name $ModuleName -Force
 
-$ModuleName = "HPCMSL"
-$LogFile = "C:\HPIA\HPCMLInstall.log"
-$HPIAPath = "C:\HPIA"
+#$ModuleName = "HPCMSL"
+Log -Message "Creating HPIA Folder: $HPIAPath" -type 1 -Component "HPIA" -LogFile $LogFile
 New-Item -ItemType Directory -Path $HPIAPath -ErrorAction Silentlycontinue
+Log -Message " - Successfully created folder: $HPIAPath" -type 1 -Component "HPIA" -LogFile $LogFile
 
-#region: CMTraceLog Function formats logging in CMTrace style
-        function CMTraceLog {
-         [CmdletBinding()]
-    Param (
-		    [Parameter(Mandatory=$false)]
-		    $Message,
- 
-		    [Parameter(Mandatory=$false)]
-		    $ErrorMessage,
- 
-		    [Parameter(Mandatory=$false)]
-		    $Component = $ModuleName,
- 
-		    [Parameter(Mandatory=$false)]
-		    [int]$Type,
-		
-		    [Parameter(Mandatory=$true)]
-		    $LogFile
-	    )
-    <#
-    Type: 1 = Normal, 2 = Warning (yellow), 3 = Error (red)
-    #>
-	    $Time = Get-Date -Format "HH:mm:ss.ffffff"
-	    $Date = Get-Date -Format "MM-dd-yyyy"
- 
-	    if ($ErrorMessage -ne $null) {$Type = 3}
-	    if ($Component -eq $null) {$Component = " "}
-	    if ($Type -eq $null) {$Type = 1}
- 
-	    $LogMessage = "<![LOG[$Message $ErrorMessage" + "]LOG]!><time=`"$Time`" date=`"$Date`" component=`"$Component`" context=`"`" type=`"$Type`" thread=`"`" file=`"`">"
-	    $LogMessage | Out-File -Append -Encoding UTF8 -FilePath $LogFile
-    }
-
-CMTraceLog -Message "----- Starting Remediation for Module $ModuleName -----" -Type 2 -LogFile $LogFile
+Log -Message "----- Starting Remediation for Module $ModuleName -----" -Type 2 -LogFile $LogFile
+[Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12 # Force Powershell to use TLS1.2
+Write-Output " - Forcing Powershell to use TLS1.2 $RequiredVersion"
 [version]$RequiredVersion = (Find-Module -Name $ModuleName).Version
 $status = $null
 $Status = Get-InstalledModule -Name $ModuleName -ErrorAction SilentlyContinue
@@ -136,7 +140,7 @@ if ($Status.Version -lt $RequiredVersion)
     {
     if ($Status){Uninstall-Module $ModuleName -AllVersions -Force}
     Write-Output "Installing $ModuleName to Latest Version $RequiredVersion"
-    CMTraceLog -Message "Installing $ModuleName to Latest Version $RequiredVersion" -Type 1 -LogFile $LogFile
+    Log -Message " - Installing $ModuleName to Latest Version $RequiredVersion" -Type 1 -LogFile $LogFile
     Install-Module -Name $ModuleName -Force -AllowClobber -AcceptLicense -Scope AllUsers
     
     #Confirm
@@ -146,64 +150,62 @@ if ($Status.Version -lt $RequiredVersion)
         {
         Write-Output "Failed to Upgrade Module $ModuleName to $RequiredVersion"
         Write-Output "Currently on Version $InstalledVersion"
-        CMTraceLog -Message "Failed to Upgrade Module $ModuleName to $RequiredVersion" -Type 3 -LogFile $LogFile
-        CMTraceLog -Message "Currently on Version $InstalledVersion" -Type 3 -LogFile $LogFile
+        Log -Message "Failed to Upgrade Module $ModuleName to $RequiredVersion" -Type 3 -LogFile $LogFile
+        Log -Message "Currently on Version $InstalledVersion" -Type 3 -LogFile $LogFile
         }
     elseif ($InstalledVersion -ne $RequiredVersion)
         {
         Write-Output "Successfully Upgraded Module $ModuleName to $RequiredVersion"
-        CMTraceLog -Message "Successfully Upgraded Module $ModuleName to $RequiredVersion" -Type 1 -LogFile $LogFile
+        Log -Message "Successfully Upgraded Module $ModuleName to $RequiredVersion" -Type 1 -LogFile $LogFile
         }
     }
 else
     {
     Write-Output "$ModuleName already Installed with $($Status.Version)"
-    CMTraceLog -Message "$ModuleName already Installed with $($Status.Version)" -Type 1 -LogFile $LogFile
+    Log -Message "$ModuleName already Installed with $($Status.Version)" -Type 1 -LogFile $LogFile
     }
 
-$HPIAPath = "C:\HPIA\"
+#$HPIAPath = "C:\HPIA\"
 Set-Location -Path $HPIAPath
 
 Install-HPImageAssistant -Extract -DestinationPath "C:\HPIA" -ErrorAction stop
-    if (Test-Path "C:\HPIA\HPImageAssistant.exe")
+    if (Test-Path "$HPIAPath\HPImageAssistant.exe")
     {
         Write-Output "HPIA Downloaded and installed"
-        CMTraceLog -Message "HPIA Downloaded and installed" -Type 1 -LogFile $LogFile
+        Log -Message "HPIA Downloaded and installed" -Type 1 -LogFile $LogFile
     }
     else
     {
         Write-Output "HPIA install Failed"
-        CMTraceLog -Message "HPIA install Failed" -Type 1 -LogFile $LogFile
+        Log -Message "HPIA install Failed" -Type 1 -LogFile $LogFile
         Exit 404
     }
 
-        if (Test-Path "C:\HPIA\Repository")
+        if (Test-Path "$HPIAPath\Repository")
         {
-            Set-Location -Path "C:\HPIA\Repository"
+            Set-Location -Path "$HPIAPath\Repository"
             Initialize-Repository
         }
         else
         {
-            New-Item -ItemType Directory -Path "C:\HPIA\Repository" -ErrorAction Stop
-            Set-Location -Path "C:\HPIA\Repository"
+            New-Item -ItemType Directory -Path "$HPIAPath\Repository" -ErrorAction Stop
+            Set-Location -Path "$HPIAPath\Repository"
             Initialize-Repository
         }
         
-
-
 Add-RepositoryFilter -platform $Baseboard -os "$OSVersion"-osver $OSBuild -category dock
-CMTraceLog -Message "Applying repository filter to $Computersystem repository to download: Dock" -type 1 -LogFile $LogFile -Component HPIA
+Log -Message "Applying repository filter to $Computersystem repository to download: Dock" -type 1 -LogFile $LogFile -Component HPIA
 
 Add-RepositoryFilter -platform $Baseboard -os "$OSVersion"-osver $OSBuild -category driver
-CMTraceLog -Message "Applying repository filter to $Computersystem repository to download: Driver" -type 1 -LogFile $LogFile -Component HPIA
+Log -Message "Applying repository filter to $Computersystem repository to download: Driver" -type 1 -LogFile $LogFile -Component HPIA
 
 Add-RepositoryFilter -platform $Baseboard -os "$OSVersion"-osver $OSBuild -category firmware
-CMTraceLog -Message "Applying repository filter to $Computersystem repository to download: Firmware" -type 1 -LogFile $LogFile -Component HPIA
+Log -Message "Applying repository filter to $Computersystem repository to download: Firmware" -type 1 -LogFile $LogFile -Component HPIA
 
 Add-RepositoryFilter -platform $Baseboard -os "$OSVersion"-osver $OSBuild -category bios
-CMTraceLog -Message "Applying repository filter to $Computersystem repository to download: BIOS" -type 1 -LogFile $LogFile -Component HPIA
+Log -Message "Applying repository filter to $Computersystem repository to download: BIOS" -type 1 -LogFile $LogFile -Component HPIA
 
-CMTraceLog -Message "Invoking repository sync for $Computersystem $Baseboard. OS: "$OSVersion", $OSBuild" -LogFile $LogFile -Component HPIA
+Log -Message "Invoking repository sync for $Computersystem $Baseboard. OS: "$OSVersion", $OSBuild" -LogFile $LogFile -Component HPIA
 Write-Output "Invoking repository sync for $Computersystem $Baseboard. OS: "$OSVersion", $OSBuild (might take some time)"
     
     try
@@ -213,28 +215,27 @@ Write-Output "Invoking repository sync for $Computersystem $Baseboard. OS: "$OSV
         Invoke-RepositorySync -Quiet
 
 
-        CMTraceLog -Message "Repository sync for $Computersystem $Baseboard. OS: $OSVerion, $OSBuild successful" -LogFile $LogFile -Component HPIA
+        Log -Message "Repository sync for $Computersystem $Baseboard. OS: $OSVerion, $OSBuild successful" -LogFile $LogFile -Component HPIA
         Write-Output "Repository sync for $Computersystem $Baseboard. OS: $OSVerion, $OSBuild successful"
     }
     catch
     {
-        CMTraceLog -Message "Repository sync for $Computersystem $Baseboard. OS: $OSVerion, $OSBuild NOT successful" -LogFile $LogFile -Component HPIA -Type 2
+        Log -Message "Repository sync for $Computersystem $Baseboard. OS: $OSVerion, $OSBuild NOT successful" -LogFile $LogFile -Component HPIA -Type 2
         Write-Output "Repository sync for $Computersystem $Baseboard. OS: $OSVerion, $OSBuild NOT successful"
-        CMTraceLog -Message "Error code: $($_.Exception.Message)" -Type 3 -Component "Error" -LogFile $LogFile
+        Log -Message "Error code: $($_.Exception.Message)" -Type 3 -Component "Error" -LogFile $LogFile
+        Exit 1 # La till Exit code här behövs det?!
 
     }
 Start-Sleep -s 15
 
 If(-not $LTSC){
-$CabName = (Get-ItemProperty C:\HPIA\Repository\.repository\cache\*.cab).name
-$CabNewName = ((Get-ItemProperty C:\HPIA\Repository\.repository\cache\*.cab).name).Replace(".cab", ".e.cab")
-Rename-Item -path "C:\HPIA\Repository\.repository\cache\$CabName" -newname $CabNewName
+$CabName = (Get-ItemProperty $HPIAPath\Repository\.repository\cache\*.cab).name
+$CabNewName = ((Get-ItemProperty $HPIAPath\Repository\.repository\cache\*.cab).name).Replace(".cab", ".e.cab")
+Rename-Item -path "$HPIAPath\Repository\.repository\cache\$CabName" -newname $CabNewName
 }
 
-$LogFile = "C:\HPIA\HPIAApply.log"
-$HPIALogFile = "C:\HPIA\"
-$SoftpaqDownloadFolder = "C:\HPIA"
-Set-Location "C:\HPIA\"
+
+Set-Location "$HPIAPath\"
         [System.Environment]::SetEnvironmentVariable("biospass","$($BIOSPassword)")
         $Argument = "/Operation:Analyze /Action:install /Selection:All /OfflineMode:Repository /noninteractive /Debug /SoftpaqDownloadFolder:$($SoftpaqDownloadFolder) /ReportFolder:$($HPIALogFile) /BIOSPwdEnv:biospass"              
 
@@ -291,6 +292,7 @@ Set-Location "C:\HPIA\"
             $Errorcode = "Process exited with code $($HPIAProcess.ExitCode) . Expecting 0." 
         }
 
+[System.Environment]::SetEnvironmentVariable('biospass','Secret')
 
 Log -Message "HPIA script is now completed." -Component "HPIA" -Type 1 -logfile $LogFile
-[System.Environment]::SetEnvironmentVariable('biospass','Secret')
+Log -Message "---------------------------------------------------------------------------------------------------------------------------------------------------" -type 1 -Component "HPIA" -LogFile $LogFile

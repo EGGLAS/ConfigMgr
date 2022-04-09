@@ -38,8 +38,10 @@
                                 - Removed unused code
                                 - Added more logging to the log
                                 - Added more error handling to the script to be able to catch errors to the log file.
-            2.1 - 2022-04-04 - Rickard Lundberg
-                                - Fixed bugg when offline folder is not created during first run, Invoke-RepositorySync to run after Set-RepositoryConfiguration. 
+            2.1 - 2022-04-08 - Nicklas Eriksson - THIS VERSION IS STILL IN BETA!!! Supported CSV file is not upload but hopefully uploaded sometime between 2022-04-09-2022-04-18
+                                - Added automatic remove 
+                                - Added function ConnectToConfigMgr
+ 
  Contact: Grahns.Daniel@outlook.com, erikssonnicklas@hotmail.com
  Twitter: Sigge_gooner 
  LinkedIn: https://www.linkedin.com/in/danielgrahns/
@@ -68,7 +70,8 @@ param(
     [string]$Config
 )
 
-#$Config = "E:\scripts\importhpia\Config.xml" #(.\ImportHPIA.ps1 -config .\config.xml) # Only used for debug purpose, it's better to run the script from script line.
+$ScriptVersion = "2.1"
+#$Config = "E:\scripts\importhpia\Config_BETA.xml" #(.\ImportHPIA.ps1 -config .\config.xml) # Only used for debug purpose, it's better to run the script from script line.
 $stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
 
 function Print
@@ -140,6 +143,26 @@ function ModuleUpdateAvailable($Module)
     }
 }
 
+function ConnectToConfigMgr
+{
+        # ConfigMgr part start here    
+    Import-Module $ConfigMgrModule
+
+    # Customizations
+    $initParams = @{}
+
+    # Connect to the site's drive if it is not already present
+    if((Get-PSDrive -Name $SiteCode -PSProvider CMSite -ErrorAction SilentlyContinue) -eq $null) {
+        New-PSDrive -Name $SiteCode -PSProvider CMSite -Root $SiteServer @initParams
+        Log -Message "Mapping PSDrive for ConfigMgr" -type 1 -LogFile $LogFile -Component ConfigMgr
+
+    }
+    
+    Set-location "$($SiteCode):\"
+
+
+}
+
 Print -Message "######################################" -Color Cyan
 Print -Message "### MASHPIA - Starting Import-HPIA ###" -Color Cyan
 Print -Message "######################################" -Color Cyan
@@ -180,10 +203,11 @@ $InstallHPCML = $Xml.Configuration.Option | Where-Object {$_.Name -like 'Install
 $MigratePaths = $Xml.Configuration.Option | Where-Object {$_.Name -like 'MigratePaths'} | Select-Object -ExpandProperty 'Enabled'
 $MigratePathsOS = $Xml.Configuration.Option | Where-Object {$_.Name -like 'MigratePaths'} | Select-Object -ExpandProperty 'Value'
 $XMLEnableSMTP = $Xml.Configuration.Option | Where-Object {$_.Name -like 'EnableSMTP'} | Select-Object 'Enabled','SMTP',"Adress"
+$AutomaticCleanUp = $Xml.Configuration.Option | Where-Object {$_.Name -like 'AutomaticCleanUp'} | Select-Object 'Enabled','Build',"Model"
+
 #$XMLLogfile = $Xml.Configuration.Option | Where-Object {$_.Name -like 'Logfile'} | Select-Object -ExpandProperty 'Value'
 
 # Hardcoded variabels in the script.
-$ScriptVersion = "2.1"
 $LogFile = "$InstallPath\RepositoryUpdate.log" #Filename for the logfile.
 [int]$MaxLogSize = 9999999
 
@@ -530,13 +554,142 @@ if (Test-path $SupportedModelsCSV) {
     {
         Log -Message "Info: $($ModelsToImport.Model.Count) model found" -Type 1 -LogFile $LogFile -Component FileImport
         Print -Message "$($ModelsToImport.Model.Count) model found" -Color Green -Indent 2
-
     }   
 }
 else {
     Print -Message "Could not find any .CSV file, the script will break" -Color Red -Indent 2
     Log -Message "Could not find any .CSV file, the script will break" -Type 3 -LogFile $LogFile -Component FileImport
     Break
+}
+
+if ($AutomaticCleanUp.Enabled -eq "True") {
+    Print -Message "Automatic cleanup is enabled, will delete package and source files" -Color Magenta
+    Log -Message "Automatic cleanup is enabled, will delete package and source files" -type 1 -LogFile $LogFile -Component "AutomaticRemove"
+    Log -Message "Will either delete OS Build/s or model/s" -type 1 -LogFile $LogFile -Component HPIA
+
+    $RemoveOSBuilds = [array]($AutomaticCleanUp.Build -split ",")
+    #$RemoveOSBUilds = "20H2"
+    if (-not ([string]::IsNullOrEmpty($RemoveOSBuilds)))
+    {
+        foreach ($RemoveOSBuild in $RemoveOSBuilds)
+        {
+            Log -Message "Starting to delete OSBuild: $RemoveOSBuild" -type 1 -LogFile $LogFile -Component AutomaticRemove
+            
+            ConnectToConfigMgr
+
+            $DriverPackageName = "HPIA-*$RemoveOSBuild*"
+            $AllRetiredDriverPackage = Get-CMPackage -Name $DriverPackageName -fast #| Select-Object -Property Name, pkgSourcePath
+            Log -Message "Got $($AllRetiredDriverPackage.count) packages that was marked for deletion." -Type 1 $LogFile -Component "AutomaticRemove"
+            # Delete Packages in ConfigMgr
+            if ($AllRetiredDriverPackage.Count -gt 1)
+            {
+        
+                Foreach($RetiredCMPackage in $AllRetiredDriverPackage)
+                {
+                    try
+                    {
+                        Remove-CMPackage -Name $RetiredCMPackage.Name -Force -ErrorAction Stop -WhatIf 
+                        Print -Message "Successfully deleted $($RetiredCMPackage.Name)" -Color Magenta
+                        Log -Message "Successfully deleted $($RetiredCMPackage.Name)" -Type 1 -LogFile $LogFile -Component AutomaticRemove
+                    }
+                    catch
+                    {
+                        Log -Message "Could not delete $($RetiredCMPackage.Name) in ConfigMgr" -LogFile $LogFile -Component AutomaticRemove -Type 2
+                        Print -Message "Could not delete $($RetiredCMPackage.Name) in ConfigMgr" -Indent 4 -Color Red
+                        Log -Message "Error code: $($_.Exception.Message)" -Type 3 -Component "Error" -LogFile $LogFile
+
+                    }
+                }
+
+                $CheckAllRetiredDriverPackage = Get-CMPackage -Name $DriverPackageName -fast #| Select-Object -Property Name, pkgSourcePath
+
+                Print -Message "Done with deletion in ConfigMgr and it's $($CheckAllRetiredDriverPackage.Count) packages left" -Color Magenta
+                Log -Message "Done with deletion in ConfigMgr and it's $($CheckAllRetiredDriverPackage.Count) packages left" -Type 1 -LogFile $LogFile -Component AutomaticRemove
+
+                Set-Location -Path $($InstallPath)
+  
+                # Delete source folders
+                foreach ($RetiredCMPackage in $AllRetiredDriverPackage)
+                {
+                    try
+                    {
+                        $DeleteRetiredPackagePath = $RetiredCMPackage.PkgSourcePath # -replace "\\StandardPkg\\" -replace ""
+                        Log "Starting to remove $($RetiredCMPackage.Name) with sourcepath $($DeleteRetiredPackagePath)" -type 1 -LogFile $LogFile -Component AutomaticRemove
+                        Remove-item -Path $DeleteRetiredPackagePath -Confirm:$false -Recurse -WhatIf
+                        Print -Message "Successfully deleted $($RetiredCMPackage.Name) source files" -Color Magenta
+                        Log "Successfully deleted $($RetiredCMPackage.Name) with sourcepath $($DeleteRetiredPackagePath)" -type 1 -LogFile $LogFile -Component AutomaticRemove
+                    }
+                    catch
+                    {
+                        Log -Message "Could not delete $($RetiredCMPackage.Name) in ConfigMgr" -LogFile $LogFile -Component AutomaticRemove -Type 2
+                        Print -Message "Could not delete $($RetiredCMPackage.Name) in ConfigMgr" -Indent 4 -Color Red
+                        Log -Message "Error code: $($_.Exception.Message)" -Type 3 -Component AutomaticRemove -LogFile $LogFile
+                    }
+
+                }
+                Set-Location -Path $($InstallPath)
+
+            }
+        }
+
+    }
+
+    if (Test-path $AutomaticCleanUp.Model) 
+    {
+        $NotSupportedModels = $AutomaticCleanUp.Model
+
+	    $ModelsToDelete = Import-Csv -Path $NotSupportedModels -ErrorAction Stop
+        if ($ModelsToDelete.Model.Count -gt "1")
+        {
+            
+            Log -Message "Info: $($AutomaticCleanUp.Model.Count) model/s found" -Type 1 -LogFile $LogFile -Component FileImport
+            Print -Message "$($AutomaticCleanUp.Model.Count) model/s found" -Color Green -Indent 2
+            Log -Message "Info: Starting clean-up in ConfigMgr  first" -Type 1 -LogFile $LogFile -Component FileImport
+            Print -Message "$($AutomaticCleanUp.Model.Count) model/s found" -Color Green -Indent 2
+            
+            ConnectToConfigMgr
+
+            foreach ($DeleteModel in $ModelsToDelete)
+            {
+                $PackageName = "HPIA-$($Model.WindowsVersion)-$WindowsBuild-" + "$($Model.Model)" + " $($Model.ProdCode)" #Must be below 40 characters, hardcoded variable, will be used inside the ApplyHPIA.ps1 script, Please dont change this.
+                Log "Starting to delete $($PackageName)" -type 1 -LogFile $LogFile -Component AutomaticRemove
+
+                try
+                {
+                $DeleteCurrentCMPackage = Get-CMPackage -Name $DriverPackageName -fast -ErrorAction Stop
+                Remove-CMPackage -Name $DeleteCurrentCMPackage.Name -Force -WhatIf -ErrorAction Stop
+                Log "Successfully deleted $($DeleteCurrentCMPackage.Name)" -type 1 -LogFile $LogFile -Component AutomaticRemove
+                }
+                catch
+                {
+                    Log -Message "Could not delete $PackageName in ConfigMgr" -LogFile $LogFile -Component HPIA -Type 2
+                    Print -Message "Could not delete $PackageName in ConfigMgr" -Indent 4 -Color Red
+                    Log -Message "Error code: $($_.Exception.Message)" -Type 3 -Component "Error" -LogFile $LogFile
+
+                }
+
+                Try
+                {
+                Set-Location -Path $($InstallPath)
+                Remove-item -Path $DeleteCurrentCMPackage.PkgSourcePath -Confirm:$false -Recurse -WhatIf
+                Log "Successfully deleted $($DeleteRetiredPackagePath.PkgSourcePath)" -type 1 -LogFile $LogFile -Component AutomaticRemove
+                }
+                catch
+                {
+                    Log -Message "Could not remove $PackageName in ConfigMgr" -LogFile $LogFile -Component HPIA -Type 2
+                    Print -Message "Could not remove $PackageName in ConfigMgr" -Indent 4 -Color Red
+                    Log -Message "Error code: $($_.Exception.Message)" -Type 3 -Component "Error" -LogFile $LogFile
+
+                }
+
+            }
+        }
+        else 
+        {
+            Print -Message "Could not find any .CSV file, the script will break" -Color Red -Indent 2
+            Log -Message "Could not find any .CSV file, the script will break" -Type 3 -LogFile $LogFile -Component FileImport
+        }
+    }
 }
 
 $HPModelsTable = foreach ($Model in $ModelsToImport) {
@@ -726,11 +879,11 @@ foreach ($Model in $HPModelsTable) {
     
     try
     {
+        Invoke-RepositorySync -Quiet
 
         Set-RepositoryConfiguration -Setting OfflineCacheMode -CacheValue Enable
         Start-Sleep -s 15
         Set-RepositoryConfiguration -Setting OfflineCacheMode -CacheValue Enable
-        Invoke-RepositorySync -Quiet
 
         Log -Message "Repository sync for $($Model.Model) $($Model.ProdCode). OS: $($Model.WindowsVersion), $($Model.WindowsBuild) successful" -LogFile $LogFile -Component HPIA
         Print -Message "Repository sync for $($Model.Model) $($Model.ProdCode). OS: $($Model.WindowsVersion), $($Model.WindowsBuild) successful" -Indent 4 -Color Green
