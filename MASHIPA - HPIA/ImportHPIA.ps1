@@ -4,7 +4,7 @@
   Information: Some variabels are hardcoded, search on Hardcoded variabels and you will find those. 
   Link to project: https://github.com/EGGLAS/ConfigMgr
   Created: 2021-02-11
-  Latest updated: 2022-03-22
+  Latest updated: 2022-04-10
   Current version: 2.1
 
   Changelog: 1.0 - 2021-02-11 - Nicklas Eriksson -  Script Edited and fixed Daniels crappy hack and slash code :)
@@ -14,7 +14,7 @@
              1.4 - 2021-05-21 - Nicklas Eriksson & Daniel GrÃ¥hns - Changed the logic for how to check if the latest HPIA is downloaded or not since HP changed the how the set the name for HPIA.
              1.5 - 2021-06-10 - Nicklas Eriksson - Added check to see that folder path exists in ConfigMgr otherwise creat the folder path.
              1.6 - 2021-06-17 - Nicklas Eriksson - Added -Quiet to Invoke-RepositorySync, added max log size so the log file will rollover.
-             1.7 - 2021-06-18 - Nicklas Eriksson & Daniel GrÃ¥hns - Added if it's the first time the model is running skip filewatch.
+             1.7 - 2021-06-18 - Nicklas Eriksson & Daniel Grahns - Added if it's the first time the model is running skip filewatch.
              1.8 - 2022-02-01 - Daniel Grahns and Rickard Lundberg 
                                  - Updated Roboycopy syntax
                                  - Check if PSDrive exists for ConfigMgr if not it will be mapped.
@@ -38,9 +38,9 @@
                                 - Removed unused code
                                 - Added more logging to the log
                                 - Added more error handling to the script to be able to catch errors to the log file.
-            2.1 - 2022-04-08 - Nicklas Eriksson - THIS VERSION IS STILL IN BETA!!! Supported CSV file is not upload but hopefully uploaded sometime between 2022-04-09-2022-04-18
-                                - Added automatic remove 
-                                - Added function ConnectToConfigMgr
+            2.1 - 2022-04-08 - Nicklas Eriksson - THIS VERSION IS STILL IN BETA!!! Supported Config and CSV file is not upload but hopefully uploaded sometime between 2022-04-09-2022-04-18
+                                - Added a new function cleanup function to be able to cleanup WindowsBuild or specific models that are no longer supported in your enviroemnt. 
+                                - Created function ConnectToConfigMgr
  
  Contact: Grahns.Daniel@outlook.com, erikssonnicklas@hotmail.com
  Twitter: Sigge_gooner 
@@ -51,7 +51,6 @@
  TO-Do
  - Maybe add support for Software.
  - More error handling
- - Add function to remove old package and sources files if the model is no longer supported.
 
  How to run HPIA:
     - ImportHPIA.ps1 -Config .\Config.xml
@@ -70,7 +69,6 @@ param(
     [string]$Config
 )
 
-$ScriptVersion = "2.1"
 #$Config = "E:\scripts\importhpia\Config_BETA.xml" #(.\ImportHPIA.ps1 -config .\config.xml) # Only used for debug purpose, it's better to run the script from script line.
 $stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
 
@@ -131,7 +129,7 @@ Type: 1 = Normal, 2 = Warning (yellow), 3 = Error (red)
 function ModuleUpdateAvailable($Module)
 {
     [version]$OnlineVersion = (Find-Module $Module).Version
-    [version]$InstalledVersion = (Get-Module -ListAvailable | where {$_.Name -eq "$Module"} -ErrorAction Ignore | sort Version -Descending).Version | select -First 1
+    [version]$InstalledVersion = (Get-Module -ListAvailable | Where-Object {$_.Name -eq "$Module"} -ErrorAction Ignore | Sort-Object Version -Descending).Version | Select-Object -First 1
 
     if ($OnlineVersion -le $InstalledVersion)
     {
@@ -142,11 +140,22 @@ function ModuleUpdateAvailable($Module)
         return $true
     }
 }
-
+# Function for Import module and connect to a PSDrive for ConfigMgr
 function ConnectToConfigMgr
 {
-        # ConfigMgr part start here    
-    Import-Module $ConfigMgrModule
+      
+    try
+    {
+        Log -Message "Importing ConfigMgr Module from $ConfigMgrModule" -type 2 -Component "LogFile" -LogFile $LogFile    
+        Import-Module $ConfigMgrModule
+
+    }
+    catch 
+    {
+        Log -Message "Failed to import ConfigMgr Module from $ConfigMgrModule" -Type 3 -Component "Error" -LogFile $LogFile
+        Log -Message "Error code: $($_.Exception.Message)" -type 3 -Component "Script" -LogFile $LogFile
+        exit 1
+    }
 
     # Customizations
     $initParams = @{}
@@ -159,9 +168,8 @@ function ConnectToConfigMgr
     }
     
     Set-location "$($SiteCode):\"
-
-
 }
+
 
 Print -Message "######################################" -Color Cyan
 Print -Message "### MASHPIA - Starting Import-HPIA ###" -Color Cyan
@@ -203,11 +211,12 @@ $InstallHPCML = $Xml.Configuration.Option | Where-Object {$_.Name -like 'Install
 $MigratePaths = $Xml.Configuration.Option | Where-Object {$_.Name -like 'MigratePaths'} | Select-Object -ExpandProperty 'Enabled'
 $MigratePathsOS = $Xml.Configuration.Option | Where-Object {$_.Name -like 'MigratePaths'} | Select-Object -ExpandProperty 'Value'
 $XMLEnableSMTP = $Xml.Configuration.Option | Where-Object {$_.Name -like 'EnableSMTP'} | Select-Object 'Enabled','SMTP',"Adress"
-$AutomaticCleanUp = $Xml.Configuration.Option | Where-Object {$_.Name -like 'AutomaticCleanUp'} | Select-Object 'Enabled','Build',"Model"
+$AutomaticCleanUp = $Xml.Configuration.Option | Where-Object {$_.Name -like 'AutomaticCleanUp'} | Select-Object 'Enabled','WindowsVersion','WindowsBuild',"Model"
 
 #$XMLLogfile = $Xml.Configuration.Option | Where-Object {$_.Name -like 'Logfile'} | Select-Object -ExpandProperty 'Value'
 
 # Hardcoded variabels in the script.
+$ScriptVersion = "2.1"
 $LogFile = "$InstallPath\RepositoryUpdate.log" #Filename for the logfile.
 [int]$MaxLogSize = 9999999
 
@@ -229,10 +238,10 @@ Log -Message "Script was started with version: $($ScriptVersion)" -type 1 -LogFi
 if ($MigratePaths -eq "True")
 {
     # Check if there is anything to migrate from old to new structure with support for Windows 11
-    $NewFolderStructureTest = Get-ChildItem $RepositoryPath | where {$_.Name -eq "Win10" -or $_.Name -eq "Win11"}
+    $NewFolderStructureTest = Get-ChildItem $RepositoryPath | Where-Object {$_.Name -eq "Win10" -or $_.Name -eq "Win11"}
     $OldFolderNames = "$MigratePathsOS" #remove those you dont want to migrate
     $OldFolderNames = [array]($OldFolderNames -split ",")
-    $OldFolderTest = Get-ChildItem $RepositoryPath | where {$_.Name -in $OldFolderNames}
+    $OldFolderTest = Get-ChildItem $RepositoryPath | Where-Object {$_.Name -in $OldFolderNames}
     
 
     if (([string]::IsNullOrEmpty($NewFolderStructureTest)) -or (-not [string]::IsNullOrEmpty($OldFolderTest))) 
@@ -242,36 +251,15 @@ if ($MigratePaths -eq "True")
         
         Print -Message "New folder structure does not exist, need to migrate and rename packages to new structure" -Color Yellow -Indent 1
         Log -Message " - New folder structure does not exist, need to migrate and rename packages to new structure" -type 2 -Component "LogFile" -LogFile $LogFile    
-        
-        try
-        {
-            Log -Message "Importing ConfigMgr Module from $ConfigMgrModule" -type 2 -Component "LogFile" -LogFile $LogFile    
-            Import-Module $ConfigMgrModule
 
-        }
-        catch 
-        {
-            Log -Message "Failed to import ConfigMgr Module from $ConfigMgrModule" -Type 3 -Component "Error" -LogFile $LogFile
-            Log -Message "Error code: $($_.Exception.Message)" -type 3 -Component "Script" -LogFile $LogFile
-            exit 1
-        }
-        
-        # Customizations
-        $initParams = @{}
-
-        # Connect to the site's drive if it is not already present
-        if((Get-PSDrive -Name $SiteCode -PSProvider CMSite -ErrorAction SilentlyContinue) -eq $null) {
-            New-PSDrive -Name $SiteCode -PSProvider CMSite -Root $SiteServer @initParams
-            Log -Message "Mapping PSDrive for ConfigMgr" -type 1 -LogFile $LogFile -Component ConfigMgr
-
-        }
-        #Set-location "$($SiteCode):\"
+        ConnectToConfigMgr
+                
         Set-Location $InstallPath
 
         # Moving repository to new structure, assuming old is Windows 10
         Print -Message "Assuming old folder structure is for Windows 10, creating Win10 subfolder in $RepositoryPath" -Color Green -Indent 2
         Log -Message " - Assuming old folder structure is for Windows 10, creating Win10 subfolder in $RepositoryPath" -type 2 -Component "LogFile" -LogFile $LogFile    
-        $OldFolders = Get-ChildItem $RepositoryPath | where {$_.Name -in $OldFolderNames}
+        $OldFolders = Get-ChildItem $RepositoryPath | Where-Object {$_.Name -in $OldFolderNames}
         $NewWin10Folder = New-Item $(Join-Path $RepositoryPath "Win10") -ItemType Directory -ErrorAction SilentlyContinue
         
         if ((Test-Path -Path "$RepositoryPath\win10") -eq $True) # Needed to add this if Win10 folder already exists the variable $NewWin10Folder will be empty.
@@ -308,7 +296,7 @@ if ($MigratePaths -eq "True")
                 Log -Message " - Working on ($($SourcePackage.Name))" -type 1 -Component "LogFile" -LogFile $LogFile    
 
                 Set-location "$($SiteCode):\"                
-                $CMPackage = Get-CMPackage -Name "*$SourcePackageName" -Fast | Where-Object Name -like "HPIA-$($OldFolder.Name)-*" | Select Name, PackageID                            
+                $CMPackage = Get-CMPackage -Name "*$SourcePackageName" -Fast | Where-Object Name -like "HPIA-$($OldFolder.Name)-*" | Select-Object Name, PackageID                            
 
                 if (-not ([string]::IsNullOrEmpty($CMPackage)))
                 {
@@ -486,7 +474,7 @@ Print -Message "Processing BIOS password file" -Color Green -Indent 1
 Log -Message "Processing BIOS password file" -type 1 -LogFile $LogFile -Component HPIA
 
 # Copy BIOS PWD to HPIA. 
-$BIOS = (Get-ChildItem -Path "$($XMLInstallHPIA.Value)\*.bin" | sort LastWriteTime -Descending | select -First 1) # Check for any Password.BIN file. 
+$BIOS = (Get-ChildItem -Path "$($XMLInstallHPIA.Value)\*.bin" | Sort-Object LastWriteTime -Descending | Select-Object -First 1) # Check for any Password.BIN file. 
 
 if (-not ([string]::IsNullOrEmpty($BIOS)))
 {
@@ -565,9 +553,9 @@ else {
 if ($AutomaticCleanUp.Enabled -eq "True") {
     Print -Message "Automatic cleanup is enabled, will delete package and source files" -Color Magenta
     Log -Message "Automatic cleanup is enabled, will delete package and source files" -type 1 -LogFile $LogFile -Component "AutomaticRemove"
-    Log -Message "Will either delete OS Build/s or model/s" -type 1 -LogFile $LogFile -Component HPIA
+    Log -Message "Will either delete OS Build/s or model/s" -type 1 -LogFile $LogFile -Component AutomaticRemove
 
-    $RemoveOSBuilds = [array]($AutomaticCleanUp.Build -split ",")
+    $RemoveOSBuilds = [array]($AutomaticCleanUp.WindowsBuild -split ",")
     #$RemoveOSBUilds = "20H2"
     if (-not ([string]::IsNullOrEmpty($RemoveOSBuilds)))
     {
@@ -577,13 +565,13 @@ if ($AutomaticCleanUp.Enabled -eq "True") {
             
             ConnectToConfigMgr
 
-            $DriverPackageName = "HPIA-*$RemoveOSBuild*"
-            $AllRetiredDriverPackage = Get-CMPackage -Name $DriverPackageName -fast #| Select-Object -Property Name, pkgSourcePath
+            $DriverPackageName = "HPIA-$($AutomaticCleanUp.WindowsVersion)-$RemoveOSBuild*"
+            $AllRetiredDriverPackage = Get-CMPackage -Name $DriverPackageName -fast | Select-Object -Property Name, pkgSourcePath
             Log -Message "Got $($AllRetiredDriverPackage.count) packages that was marked for deletion." -Type 1 $LogFile -Component "AutomaticRemove"
             # Delete Packages in ConfigMgr
             if ($AllRetiredDriverPackage.Count -gt 1)
             {
-        
+                Log -Message "Starting to delete the packages in ConfigMgr" -Type 1 $LogFile -Component "AutomaticRemove"      
                 Foreach($RetiredCMPackage in $AllRetiredDriverPackage)
                 {
                     try
@@ -601,7 +589,7 @@ if ($AutomaticCleanUp.Enabled -eq "True") {
                     }
                 }
 
-                $CheckAllRetiredDriverPackage = Get-CMPackage -Name $DriverPackageName -fast #| Select-Object -Property Name, pkgSourcePath
+                $CheckAllRetiredDriverPackage = Get-CMPackage -Name $DriverPackageName -fast | Select-Object -Property Name, pkgSourcePath
 
                 Print -Message "Done with deletion in ConfigMgr and it's $($CheckAllRetiredDriverPackage.Count) packages left" -Color Magenta
                 Log -Message "Done with deletion in ConfigMgr and it's $($CheckAllRetiredDriverPackage.Count) packages left" -Type 1 -LogFile $LogFile -Component AutomaticRemove
@@ -628,7 +616,6 @@ if ($AutomaticCleanUp.Enabled -eq "True") {
 
                 }
                 Set-Location -Path $($InstallPath)
-
             }
         }
 
@@ -642,27 +629,27 @@ if ($AutomaticCleanUp.Enabled -eq "True") {
         if ($ModelsToDelete.Model.Count -gt "1")
         {
             
-            Log -Message "Info: $($AutomaticCleanUp.Model.Count) model/s found" -Type 1 -LogFile $LogFile -Component FileImport
+            Log -Message "Info: $($AutomaticCleanUp.Model.Count) model/s found" -Type 1 -LogFile $LogFile -Component AutomaticRemove
             Print -Message "$($AutomaticCleanUp.Model.Count) model/s found" -Color Green -Indent 2
-            Log -Message "Info: Starting clean-up in ConfigMgr  first" -Type 1 -LogFile $LogFile -Component FileImport
+            Log -Message "Info: Starting clean-up in ConfigMgr  first" -Type 1 -LogFile $LogFile -Component AutomaticRemove
             Print -Message "$($AutomaticCleanUp.Model.Count) model/s found" -Color Green -Indent 2
             
             ConnectToConfigMgr
 
             foreach ($DeleteModel in $ModelsToDelete)
             {
-                $PackageName = "HPIA-$($Model.WindowsVersion)-$WindowsBuild-" + "$($Model.Model)" + " $($Model.ProdCode)" #Must be below 40 characters, hardcoded variable, will be used inside the ApplyHPIA.ps1 script, Please dont change this.
-                Log "Starting to delete $($PackageName)" -type 1 -LogFile $LogFile -Component AutomaticRemove
+                $PackageName = "HPIA-$($DeleteModel.WindowsVersion)-$($DeleteModel.WindowsBuild)-" + "$($DeleteModel.Model)" + " $($DeleteModel.ProdCode)" #Must be below 40 characters, hardcoded variable, will be used inside the ApplyHPIA.ps1 script, Please dont change this.
+                Log "Starting the delete process for $($PackageName)" -type 1 -LogFile $LogFile -Component AutomaticRemove
 
                 try
                 {
-                $DeleteCurrentCMPackage = Get-CMPackage -Name $DriverPackageName -fast -ErrorAction Stop
-                Remove-CMPackage -Name $DeleteCurrentCMPackage.Name -Force -WhatIf -ErrorAction Stop
-                Log "Successfully deleted $($DeleteCurrentCMPackage.Name)" -type 1 -LogFile $LogFile -Component AutomaticRemove
+                    $DeleteCurrentCMPackage = Get-CMPackage -Name $DriverPackageName -fast -ErrorAction Stop
+                    Remove-CMPackage -Name $DeleteCurrentCMPackage.Name -Force -WhatIf -ErrorAction Stop
+                    Log "Successfully deleted the package for $($DeleteCurrentCMPackage.Name) in ConfigMgr" -type 1 -LogFile $LogFile -Component AutomaticRemove
                 }
                 catch
                 {
-                    Log -Message "Could not delete $PackageName in ConfigMgr" -LogFile $LogFile -Component HPIA -Type 2
+                    Log -Message "Could not delete $PackageName in ConfigMgr" -LogFile $LogFile -Component AutomaticRemove -Type 2
                     Print -Message "Could not delete $PackageName in ConfigMgr" -Indent 4 -Color Red
                     Log -Message "Error code: $($_.Exception.Message)" -Type 3 -Component "Error" -LogFile $LogFile
 
@@ -670,18 +657,20 @@ if ($AutomaticCleanUp.Enabled -eq "True") {
 
                 Try
                 {
-                Set-Location -Path $($InstallPath)
-                Remove-item -Path $DeleteCurrentCMPackage.PkgSourcePath -Confirm:$false -Recurse -WhatIf
-                Log "Successfully deleted $($DeleteRetiredPackagePath.PkgSourcePath)" -type 1 -LogFile $LogFile -Component AutomaticRemove
+                    Set-Location -Path $($InstallPath)
+                    Remove-item -Path $DeleteCurrentCMPackage.PkgSourcePath -Confirm:$false -Recurse -WhatIf
+                    Log "Successfully deleted $($DeleteRetiredPackagePath.PkgSourcePath) source files" -type 1 -LogFile $LogFile -Component AutomaticRemove
                 }
                 catch
                 {
-                    Log -Message "Could not remove $PackageName in ConfigMgr" -LogFile $LogFile -Component HPIA -Type 2
-                    Print -Message "Could not remove $PackageName in ConfigMgr" -Indent 4 -Color Red
+                    Log -Message "Could not remove $($PackageName.PkgsourcePath) source files" -LogFile $LogFile -Component AutomaticRemove -Type 2
+                    Print -Message "Could not remove $($PackageName.PkgsourcePath) source files" -Indent 4 -Color Red
                     Log -Message "Error code: $($_.Exception.Message)" -Type 3 -Component "Error" -LogFile $LogFile
 
                 }
-
+                
+                Log -Message "$($DeleteModel.Model) is done, continue with next model in the list." -type 1 -LogFile $LogFile
+                Print -Message "$($DeleteModel.Model) is done, continue with next model (if any) in the list" -Color Green -Indent 2
             }
         }
         else 
@@ -995,21 +984,8 @@ foreach ($Model in $HPModelsTable) {
 
     Print -Message "Starting ConfigMgr Tasks" -Color Green -Indent 3
 
-    # ConfigMgr part start here    
-    Import-Module $ConfigMgrModule
-
-    # Customizations
-    $initParams = @{}
-
-    # Connect to the site's drive if it is not already present
-    if((Get-PSDrive -Name $SiteCode -PSProvider CMSite -ErrorAction SilentlyContinue) -eq $null) {
-        New-PSDrive -Name $SiteCode -PSProvider CMSite -Root $SiteServer @initParams
-        Log -Message "Mapping PSDrive for ConfigMgr" -type 1 -LogFile $LogFile -Component ConfigMgr
-
-    }
+    ConnectToConfigMgr
     
-    Set-location "$($SiteCode):\"
-
     if ((Test-path $CMfolderPath) -eq $false)
     {
         Log -Message "$CMFolderPath does not exists in ConfigMgr, creating folder path" -type 1 -LogFile $LogFile -Component ConfigMgr
