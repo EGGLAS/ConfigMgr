@@ -1,7 +1,7 @@
 # ConfigMgr / MASHIPA
 
 In our opinon Mashipa is an awesome automation tool for HP machines.
-The tool will download the needed drivers, firmware, bios or software for each model and it's done with HPs HPCMSL cmdlets.
+The tool will download the needed drivers, firmware, bios or software for each model and it's all accomplished with HPs HPCMSL cmdlets.
 
 The tool support both Windows 10 and 11 and all OS versions that HP offers trough HPIA.
 
