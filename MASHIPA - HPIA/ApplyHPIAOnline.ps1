@@ -5,9 +5,9 @@ Script for Task Sequence after ConfigMgr client installed to download all softpa
 	2 Download all Softpaqs from Internet for HP model running OSD and create repository
 	3 Install all Drivers, Firmware, BIOS and Dock during OSD from local repository
 
- Version: 0.9
+ Version: 0.91
  Changelog:  0.9 - 2022-04-01 - Daniel Gråhns - Script Created
-             1.0 - 2022-04-04 - Nicklas Eriksson - THIS VERSION IS STILL IN BETA!
+             0.91 - 2022-04-04 - Nicklas Eriksson - THIS VERSION IS STILL IN BETA
                                 - Added OSVersion, OSBuild and LTSC as parameters.
                                 - Changed BIOS to handle trough task sequences variable.
 

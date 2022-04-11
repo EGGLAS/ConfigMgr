@@ -566,13 +566,13 @@ if ($AutomaticCleanUp.Enabled -eq "True") {
             ConnectToConfigMgr
 
             $DriverPackageName = "HPIA-$($AutomaticCleanUp.WindowsVersion)-$RemoveOSBuild*"
-            $AllRetiredDriverPackage = Get-CMPackage -Name $DriverPackageName -fast | Select-Object -Property Name, pkgSourcePath
-            Log -Message "Got $($AllRetiredDriverPackage.count) packages that was marked for deletion." -Type 1 $LogFile -Component "AutomaticRemove"
+            $GetAllRetiredDriverPackage = Get-CMPackage -Name $DriverPackageName -fast | Select-Object -Property Name, PkgSourcePath
+            Log -Message "Got $($GetAllRetiredDriverPackage.count) packages that was marked for deletion." -Type 1 $LogFile -Component "AutomaticRemove"
             # Delete Packages in ConfigMgr
-            if ($AllRetiredDriverPackage.Count -gt 1)
+            if ($GetAllRetiredDriverPackage.Count -gt 1)
             {
                 Log -Message "Starting to delete the packages in ConfigMgr" -Type 1 $LogFile -Component "AutomaticRemove"      
-                Foreach($RetiredCMPackage in $AllRetiredDriverPackage)
+                Foreach($RetiredCMPackage in $GetAllRetiredDriverPackage)
                 {
                     try
                     {
@@ -589,7 +589,7 @@ if ($AutomaticCleanUp.Enabled -eq "True") {
                     }
                 }
 
-                $CheckAllRetiredDriverPackage = Get-CMPackage -Name $DriverPackageName -fast | Select-Object -Property Name, pkgSourcePath
+                $CheckAllRetiredDriverPackage = Get-CMPackage -Name $DriverPackageName -fast | Select-Object -Property Name
 
                 Print -Message "Done with deletion in ConfigMgr and it's $($CheckAllRetiredDriverPackage.Count) packages left" -Color Magenta
                 Log -Message "Done with deletion in ConfigMgr and it's $($CheckAllRetiredDriverPackage.Count) packages left" -Type 1 -LogFile $LogFile -Component AutomaticRemove
@@ -626,24 +626,24 @@ if ($AutomaticCleanUp.Enabled -eq "True") {
         $NotSupportedModels = $AutomaticCleanUp.Model
 
 	    $ModelsToDelete = Import-Csv -Path $NotSupportedModels -ErrorAction Stop
-        if ($ModelsToDelete.Model.Count -gt "1")
+        if ($ModelsToDelete.Count -gt "1")
         {
             
-            Log -Message "Info: $($AutomaticCleanUp.Model.Count) model/s found" -Type 1 -LogFile $LogFile -Component AutomaticRemove
-            Print -Message "$($AutomaticCleanUp.Model.Count) model/s found" -Color Green -Indent 2
+            Log -Message "Info: $($AutomaticCleanUp.Count) model/s found" -Type 1 -LogFile $LogFile -Component AutomaticRemove
+            Print -Message "$($AutomaticCleanUp.Count) model/s found" -Color Green -Indent 2
             Log -Message "Info: Starting clean-up in ConfigMgr  first" -Type 1 -LogFile $LogFile -Component AutomaticRemove
-            Print -Message "$($AutomaticCleanUp.Model.Count) model/s found" -Color Green -Indent 2
+            Print -Message "Info: Starting clean-up in ConfigMgr  first" -Color Green -Indent 2
             
             ConnectToConfigMgr
 
             foreach ($DeleteModel in $ModelsToDelete)
             {
-                $PackageName = "HPIA-$($DeleteModel.WindowsVersion)-$($DeleteModel.WindowsBuild)-" + "$($DeleteModel.Model)" + " $($DeleteModel.ProdCode)" #Must be below 40 characters, hardcoded variable, will be used inside the ApplyHPIA.ps1 script, Please dont change this.
+                $PackageName = "HPIA-$($DeleteModel.WindowsVersion)-$($DeleteModel.WindowsBuild)-" + "$($DeleteModel.Model)" + " $($DeleteModel.ProductCode)" #Must be below 40 characters, hardcoded variable, will be used inside the ApplyHPIA.ps1 script, Please dont change this.
                 Log "Starting the delete process for $($PackageName)" -type 1 -LogFile $LogFile -Component AutomaticRemove
 
                 try
                 {
-                    $DeleteCurrentCMPackage = Get-CMPackage -Name $DriverPackageName -fast -ErrorAction Stop
+                    $DeleteCurrentCMPackage = Get-CMPackage -Name $PackageName -fast -ErrorAction Stop | Select-Object Name,PkgSourcePath 
                     Remove-CMPackage -Name $DeleteCurrentCMPackage.Name -Force -WhatIf -ErrorAction Stop
                     Log "Successfully deleted the package for $($DeleteCurrentCMPackage.Name) in ConfigMgr" -type 1 -LogFile $LogFile -Component AutomaticRemove
                 }
@@ -659,18 +659,19 @@ if ($AutomaticCleanUp.Enabled -eq "True") {
                 {
                     Set-Location -Path $($InstallPath)
                     Remove-item -Path $DeleteCurrentCMPackage.PkgSourcePath -Confirm:$false -Recurse -WhatIf
-                    Log "Successfully deleted $($DeleteRetiredPackagePath.PkgSourcePath) source files" -type 1 -LogFile $LogFile -Component AutomaticRemove
+                    Log "Successfully deleted $($DeleteCurrentCMPackage.PkgSourcePath) source files" -type 1 -LogFile $LogFile -Component AutomaticRemove
                 }
                 catch
                 {
-                    Log -Message "Could not remove $($PackageName.PkgsourcePath) source files" -LogFile $LogFile -Component AutomaticRemove -Type 2
-                    Print -Message "Could not remove $($PackageName.PkgsourcePath) source files" -Indent 4 -Color Red
+                    Log -Message "Could not remove $($DeleteCurrentCMPackage.PkgsourcePath) source files" -LogFile $LogFile -Component AutomaticRemove -Type 2
+                    Print -Message "Could not remove $($DeleteCurrentCMPackage.PkgsourcePath) source files" -Indent 4 -Color Red
                     Log -Message "Error code: $($_.Exception.Message)" -Type 3 -Component "Error" -LogFile $LogFile
 
                 }
                 
-                Log -Message "$($DeleteModel.Model) is done, continue with next model in the list." -type 1 -LogFile $LogFile
-                Print -Message "$($DeleteModel.Model) is done, continue with next model (if any) in the list" -Color Green -Indent 2
+                Set-location "$($SiteCode):\"
+                Log -Message "$($PackageName) is done, continue with next model in the list." -type 1 -LogFile $LogFile -Component AutomaticRemove
+                Print -Message "$($PackageName) is done, continue with next model (if any) in the list" -Color Green -Indent 2
             }
         }
         else 
