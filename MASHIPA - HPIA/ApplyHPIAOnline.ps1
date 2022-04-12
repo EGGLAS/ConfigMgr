@@ -10,6 +10,7 @@ Script for Task Sequence after ConfigMgr client installed to download all softpa
              0.91 - 2022-04-04 - Nicklas Eriksson - THIS VERSION IS STILL IN BETA
                                 - Added OSVersion, OSBuild and LTSC as parameters.
                                 - Changed BIOS to handle trough task sequences variable.
+                                - Added force Powershell to use TLS1.2
 
 How to run: Add run poweshell step in Task Sequence and add task sequence variable with HP BIOSPassword, the variable name is HPIA_BIOSPassword..
 
@@ -126,6 +127,7 @@ Log -Message " - Successfully created folder: $HPIAPath" -type 1 -Component "HPI
 
 Log -Message "----- Starting Remediation for Module $ModuleName -----" -Type 2 -LogFile $LogFile
 [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12 # Force Powershell to use TLS1.2
+Log -Message " - Forcing Powershell to use TLS1.2" -Type 2 -LogFile $LogFile
 Write-Output " - Forcing Powershell to use TLS1.2 $RequiredVersion"
 [version]$RequiredVersion = (Find-Module -Name $ModuleName).Version
 $status = $null
@@ -156,28 +158,30 @@ if ($Status.Version -lt $RequiredVersion)
 else
     {
     Write-Output "$ModuleName already Installed with $($Status.Version)"
-    Log -Message "$ModuleName already Installed with $($Status.Version)" -Type 1 -LogFile $LogFile
+    Log -Message " - $ModuleName already Installed with $($Status.Version)" -Type 1 -LogFile $LogFile
     }
 
 #$HPIAPath = "C:\HPIA\"
 Set-Location -Path $HPIAPath
 
-Install-HPImageAssistant -Extract -DestinationPath "C:\HPIA" -ErrorAction stop
+Log -Message "Starting to install HPIA" -Type 1 -LogFile $LogFile
+Install-HPImageAssistant -Extract -DestinationPath $HPIAPath -ErrorAction stop
     if (Test-Path "$HPIAPath\HPImageAssistant.exe")
     {
         Write-Output "HPIA Downloaded and installed"
-        Log -Message "HPIA Downloaded and installed" -Type 1 -LogFile $LogFile
+        Log -Message " - HPIA Downloaded and installed" -Type 1 -LogFile $LogFile
     }
     else
     {
         Write-Output "HPIA install Failed"
-        Log -Message "HPIA install Failed" -Type 1 -LogFile $LogFile
+        Log -Message " - HPIA install Failed" -Type 1 -LogFile $LogFile
         Exit 404
     }
 
         if (Test-Path "$HPIAPath\Repository")
         {
             Set-Location -Path "$HPIAPath\Repository"
+            Log -Message " - Starting Initialize-Repository" -Type 1 -LogFile $LogFile
             Initialize-Repository
         }
         else
@@ -188,18 +192,18 @@ Install-HPImageAssistant -Extract -DestinationPath "C:\HPIA" -ErrorAction stop
         }
         
 Add-RepositoryFilter -platform $Baseboard -os "$OSVersion"-osver $OSBuild -category dock
-Log -Message "Applying repository filter to $Computersystem repository to download: Dock" -type 1 -LogFile $LogFile -Component HPIA
+Log -Message " - Applying repository filter to $Computersystem repository to download: Dock" -type 1 -LogFile $LogFile -Component HPIA
 
 Add-RepositoryFilter -platform $Baseboard -os "$OSVersion"-osver $OSBuild -category driver
-Log -Message "Applying repository filter to $Computersystem repository to download: Driver" -type 1 -LogFile $LogFile -Component HPIA
+Log -Message " - Applying repository filter to $Computersystem repository to download: Driver" -type 1 -LogFile $LogFile -Component HPIA
 
 Add-RepositoryFilter -platform $Baseboard -os "$OSVersion"-osver $OSBuild -category firmware
-Log -Message "Applying repository filter to $Computersystem repository to download: Firmware" -type 1 -LogFile $LogFile -Component HPIA
+Log -Message " - Applying repository filter to $Computersystem repository to download: Firmware" -type 1 -LogFile $LogFile -Component HPIA
 
 Add-RepositoryFilter -platform $Baseboard -os "$OSVersion"-osver $OSBuild -category bios
-Log -Message "Applying repository filter to $Computersystem repository to download: BIOS" -type 1 -LogFile $LogFile -Component HPIA
+Log -Message " - Applying repository filter to $Computersystem repository to download: BIOS" -type 1 -LogFile $LogFile -Component HPIA
 
-Log -Message "Invoking repository sync for $Computersystem $Baseboard. OS: "$OSVersion", $OSBuild" -LogFile $LogFile -Component HPIA
+Log -Message " - Invoking repository sync for $Computersystem $Baseboard. OS: "$OSVersion", $OSBuild" -type 1 -LogFile $LogFile -Component HPIA
 Write-Output "Invoking repository sync for $Computersystem $Baseboard. OS: "$OSVersion", $OSBuild (might take some time)"
     
     try
@@ -209,7 +213,7 @@ Write-Output "Invoking repository sync for $Computersystem $Baseboard. OS: "$OSV
         Invoke-RepositorySync -Quiet
 
 
-        Log -Message "Repository sync for $Computersystem $Baseboard. OS: $OSVerion, $OSBuild successful" -LogFile $LogFile -Component HPIA
+        Log -Message "Repository sync for $Computersystem $Baseboard. OS: $OSVerion, $OSBuild successful" -Type 1 -LogFile $LogFile -Component HPIA
         Write-Output "Repository sync for $Computersystem $Baseboard. OS: $OSVerion, $OSBuild successful"
     }
     catch
@@ -240,7 +244,6 @@ Set-Location "$HPIAPath\"
         $Handle = $HPIAProcess.Handle # Cache Info $HPIAProcess.Handle
         $HPIAProcess.WaitForExit();
         $HPIAProcess.ExitCode
-
 
 If ($HPIAProcess.ExitCode -eq 0)
 {
