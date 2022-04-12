@@ -32,11 +32,6 @@ param(
 	[switch]$CleanUp
 )
 
-#Make Changes here!================================================
-#$OSBuild = "21H2" #Change this to set OSBuild
-#$LTSC = $True #LTSC use another standard on .cab file from HP, workaround is to rename *.cab in repository to *.e.cab, set to $false if not LTSC
-#================================================================
-
 # Construct TSEnvironment object
 try {
     $TSEnvironment = New-Object -ComObject Microsoft.SMS.TSEnvironment -ErrorAction Stop
@@ -58,7 +53,6 @@ $BIOSPassword = $TSEnvironment.Value("HPIA_BIOSPassword")
 
 # Clear task sequence variable for HP Password.
 $TSEnvironment.Value("HPIA_BIOSPassword") = [System.String]::Empty
-
 function Log {
     Param (
     [Parameter(Mandatory=$false)]
@@ -248,50 +242,54 @@ Set-Location "$HPIAPath\"
         $HPIAProcess.ExitCode
 
 
-    If ($HPIAProcess.ExitCode -eq 0)
-    {
-        
-        Log -Message "Installations is completed" -Component "HPIA" -Type 1 -logfile $LogFile
-        write-host "Installations is completed With Exit 0" -ForegroundColor Green
+If ($HPIAProcess.ExitCode -eq 0)
+{
+    
+    Log -Message "Installations is completed" -Component "HPIA" -Type 1 -logfile $LogFile
+    write-host "Installations is completed With Exit 0" -ForegroundColor Green
 
-    }
+}
 
-        If ($HPIAProcess.ExitCode -eq 3010)
-        {
-        
-            Log -Message "Install Reboot Required SoftPaq installations are successful, and at least one requires a reboot" -Component "HPIA" -Type 1 -logfile $LogFile
+If ($HPIAProcess.ExitCode -eq 3010)
+{
 
-        }
-        elseif ($HPIAProcess.ExitCode -eq 256) 
-        {
-            Log -Message "The analysis returned no recommendation." -Component "HPIA" -Type 2 -logfile $LogFile
-            $Errorcode = "The analysis returned no recommendation.."
-            (new-object -ComObject Microsoft.SMS.TsProgressUI).CloseProgressDialog() ; (new-object -ComObject wscript.shell).Popup("$($Errorcode) ",0,'Warning',0x0 + 0x30) ; Exit 0
-            Exit 256
-        }
-        elseif ($HPIAProcess.ExitCode -eq 3020) 
-        {
-            Log -Message "Installed failed n one or more softpaqs, needs second pass. 3020" -Component "HPIA" -Type 2 -logfile $LogFile
-        }
-        elseif ($HPIAProcess.ExitCode -eq 4096) 
-        {
-            Log -Message "This platform is not supported!" -Type 3 -Component "HPIA" -Type 3 -logfile $LogFile
-            $Errorcode = "This platform is not supported!"
-            (new-object -ComObject Microsoft.SMS.TsProgressUI).CloseProgressDialog() ; (new-object -ComObject wscript.shell).Popup("$($Errorcode) ",0,'Warning',0x0 + 0x30) ; Exit 0
-            exit 4096
-        }
-        elseif ($HPIAProcess.ExitCode -eq 16384) {
-        
-            Log -Message "No matching configuration found on HP.com" -Type 3 -Component "HPIA" -Type 3 -logfile $LogFile
-            $Errorcode = "No matching configuration found on HP.com"
-            (new-object -ComObject Microsoft.SMS.TsProgressUI).CloseProgressDialog() ; (new-object -ComObject wscript.shell).Popup("$($Errorcode) ",0,'Warning',0x0 + 0x30) ; Exit 0
-        }
-        Else
-        {
-            Log -Message "Process exited with code $($HPIAProcess.ExitCode). Expecting 0." -type 1 -Component "HPIA" -LogFile $LogFile
-            $Errorcode = "Process exited with code $($HPIAProcess.ExitCode) . Expecting 0." 
-        }
+    Log -Message "Install Reboot Required SoftPaq installations are successful, and at least one requires a reboot" -Component "HPIA" -Type 1 -logfile $LogFile
 
+}
+elseif ($HPIAProcess.ExitCode -eq 256) 
+{
+    Log -Message "The analysis returned no recommendation." -Component "HPIA" -Type 2 -logfile $LogFile
+    $Errorcode = "The analysis returned no recommendation.."
+    (new-object -ComObject Microsoft.SMS.TsProgressUI).CloseProgressDialog() ; (new-object -ComObject wscript.shell).Popup("$($Errorcode) ",0,'Warning',0x0 + 0x30) ; Exit 0
+    Exit 256
+}
+elseif ($HPIAProcess.ExitCode -eq 3020) 
+{
+    Log -Message "Installed failed n one or more softpaqs, needs second pass. 3020" -Component "HPIA" -Type 2 -logfile $LogFile
+}
+elseif ($HPIAProcess.ExitCode -eq 4096) 
+{
+    Log -Message "This platform is not supported!" -Type 3 -Component "HPIA" -Type 3 -logfile $LogFile
+    $Errorcode = "This platform is not supported!"
+    (new-object -ComObject Microsoft.SMS.TsProgressUI).CloseProgressDialog() ; (new-object -ComObject wscript.shell).Popup("$($Errorcode) ",0,'Warning',0x0 + 0x30) ; Exit 0
+    exit 4096
+}
+elseif ($HPIAProcess.ExitCode -eq 16384) {
+
+    Log -Message "No matching configuration found on HP.com" -Type 3 -Component "HPIA" -Type 3 -logfile $LogFile
+    $Errorcode = "No matching configuration found on HP.com"
+    (new-object -ComObject Microsoft.SMS.TsProgressUI).CloseProgressDialog() ; (new-object -ComObject wscript.shell).Popup("$($Errorcode) ",0,'Warning',0x0 + 0x30) ; Exit 0
+}
+Else
+{
+    Log -Message "Process exited with code $($HPIAProcess.ExitCode). Expecting 0." -type 1 -Component "HPIA" -LogFile $LogFile
+    $Errorcode = "Process exited with code $($HPIAProcess.ExitCode) . Expecting 0." 
+}
+
+if ($CleanUp)
+{
+    Remove-Item -Path "$env:SystemDrive\HPIA" -Recurse -Force -ErrorAction Ignore
+}
 [System.Environment]::SetEnvironmentVariable('biospass','Secret')
 
 Log -Message "HPIA script is now completed." -Component "HPIA" -Type 1 -logfile $LogFile
