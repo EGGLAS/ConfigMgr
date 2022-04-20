@@ -38,10 +38,11 @@
                                 - Removed unused code
                                 - Added more logging to the log
                                 - Added more error handling to the script to be able to catch errors to the log file.
-            2.1 - 2022-04-08 - Nicklas Eriksson - THIS VERSION IS STILL IN BETA!!! Supported Config and CSV file is not upload but hopefully uploaded sometime between 2022-04-09-2022-04-18
+            2.1 - 2022-04-08 - Nicklas Eriksson - THIS VERSION IS STILL IN BETA!!! Supported Config and CSV file is not upload but hopefully uploaded sometime between 2022-04-09-2022-04-31
                                 - Added a new function cleanup function to be able to cleanup WindowsBuild or specific models that are no longer supported in your enviroemnt. 
                                 - Created function ConnectToConfigMgr
- 
+            2.2 - 2022-04-20 - Nicklas Eriksson - THIS VERSION IS STILL IN BETA!!! Supported Config and CSV file is not upload but hopefully uploaded sometime between 2022-04-09-2022-04-31
+                                - Added support to download software as category, named HPIA_Software in the Config file.
  Contact: Grahns.Daniel@outlook.com, erikssonnicklas@hotmail.com
  Twitter: Sigge_gooner 
  LinkedIn: https://www.linkedin.com/in/danielgrahns/
@@ -207,6 +208,7 @@ $HPIAFilter_Driver = $Xml.Configuration.HPIAFilter | Where-Object {$_.Name -like
 $HPIAFilter_Firmware = $Xml.Configuration.HPIAFilter | Where-Object {$_.Name -like 'Firmware'} | Select-Object -ExpandProperty 'Enabled'
 $HPIAFilter_Driverpack = $Xml.Configuration.HPIAFilter | Where-Object {$_.Name -like 'Driverpack'} | Select-Object -ExpandProperty 'Enabled'
 $HPIAFilter_BIOS = $Xml.Configuration.HPIAFilter | Where-Object {$_.Name -like 'BIOS'} | Select-Object -ExpandProperty 'Enabled'
+$HPIAFilter_Software = $Xml.Configuration.HPIAFilter | Where-Object {$_.Name -like 'Software'} | Select-Object -ExpandProperty 'Enabled'
 $InstallHPCML = $Xml.Configuration.Option | Where-Object {$_.Name -like 'InstallHPCML'} | Select-Object -ExpandProperty 'Enabled'
 $MigratePaths = $Xml.Configuration.Option | Where-Object {$_.Name -like 'MigratePaths'} | Select-Object -ExpandProperty 'Enabled'
 $MigratePathsOS = $Xml.Configuration.Option | Where-Object {$_.Name -like 'MigratePaths'} | Select-Object -ExpandProperty 'Value'
@@ -216,7 +218,7 @@ $AutomaticCleanUp = $Xml.Configuration.Option | Where-Object {$_.Name -like 'Aut
 #$XMLLogfile = $Xml.Configuration.Option | Where-Object {$_.Name -like 'Logfile'} | Select-Object -ExpandProperty 'Value'
 
 # Hardcoded variabels in the script.
-$ScriptVersion = "2.1"
+$ScriptVersion = "2.2"
 $LogFile = "$InstallPath\RepositoryUpdate.log" #Filename for the logfile.
 [int]$MaxLogSize = 9999999
 
@@ -862,6 +864,15 @@ foreach ($Model in $HPModelsTable) {
     }
     else {
         Log -Message "Not applying repository filter to download $($Model.Model) for: BIOS" -type 1 -LogFile $LogFile -Component HPIA
+    }
+
+        # Set HPIA Filter: Software
+    if ($HPIAFilter_Software -eq "True") {
+        Add-RepositoryFilter -platform $($Model.ProdCode) -os $($Model.WindowsVersion) -osver $($Model.WindowsBuild) -category Software
+        Log -Message "Applying repository filter to $($Model.Model) repository to download: Software" -type 1 -LogFile $LogFile -Component HPIA
+    }
+    else {
+        Log -Message "Not applying repository filter to download $($Model.Model) for: Software" -type 1 -LogFile $LogFile -Component HPIA
     }
 
     Log -Message "Invoking repository sync for $($Model.Model) $($Model.ProdCode). OS: $($Model.WindowsVersion), $($Model.WindowsBuild)" -LogFile $LogFile -Component HPIA

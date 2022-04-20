@@ -10,6 +10,7 @@
 	<Setting Name="CMFolderPath" Value="CM1:\Package\Driver Packages\HPIA" />	<!-- Folder path in Configuration Manager -->
 	<Setting Name="DPGroupName" Value="Test" />	<!-- Set DP GroupName -->
 	<Option Name="MigratePaths" Enabled="False" Value="21H2,20H2,1909,1809" />	<!--DO NOT USE this unless you are SURE you want to move all old packages and sources to new locations, Important test one OS build before-->
+	<Option Name="AutomaticCleanup" Enabled="True" WindowsVersion="Win10" WindowsBuild="1909,1809" Model="E:\Scripts\ImportHPIA\AutomaticCleanup.csv" />	<!--DO NOT USE this unless you are SURE you want to move all old packages and sources to new locations, Important test one OS build before-->
 	<Option Name="InstallHPCML" Enabled="True" />	<!--Specify if you want HPCML to autoupdate from Powershell Gallery-->
 	<Option Name="EnableSMTP" Enabled="False" SMTP="labb.test.com" Adress="labb@labb.com" />	<!-- Specify SMTP and e-postadress -->
 	<HPIAFilter Name="Dock" Enabled="True" />	<!-- Enables Driver download for dock -->
@@ -17,4 +18,5 @@
 	<HPIAFilter Name="Firmware" Enabled="True" />	<!-- Enables Driver download for firmware -->
 	<HPIAFilter Name="Driverpack" Enabled="False" />	<!-- Enables Driver download for driverpack -->
 	<HPIAFilter Name="BIOS" Enabled="True" />	<!-- Enables HPIA to download for BIOS -->
+	<HPIAFilter Name="Software" Enabled="False" />	<!-- Enables HPIA to download for Software -->
 </Configuration>
