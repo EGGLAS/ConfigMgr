@@ -59,8 +59,9 @@ param(
 	[string]$OSVersion,
     [parameter(Mandatory=$False, HelpMessage = "Specify Windows Build (21H2)")]
 	[string]$Build,
-    [parameter(Mandatory = $false, HelpMessage = "If model does not exist in ConfigMgr, check online")]
-	[switch]$ApplyHPIAOnline,
+    [parameter(Mandatory = $false, HelpMessage = "If model does not exist in ConfigMgr, check online or only check online")]
+	[ValidateSet(OnlyOnline,FallbackOnline)]
+    [String]$Online,
     [Parameter(Mandatory=$False,HelpMessage='Specify Path to download to')]
     [string]$DownloadPath = "CCMCache",
     [parameter(Mandatory = $false, HelpMessage = "PreCache")]
@@ -98,24 +99,7 @@ function Log {
     $LogMessage | Out-File -Append -Encoding UTF8 -FilePath $LogFile
 }
 
-# Construct TSEnvironment object
-try {
-    $TSEnvironment = New-Object -ComObject Microsoft.SMS.TSEnvironment -ErrorAction Stop
-}
-catch [System.Exception] {
-    Write-Warning -Message "Unable to construct Microsoft.SMS.TSEnvironment object" ; exit 3
-}
-
-# Set script settings.
-$Scriptversion = "2.0"
-$LogFile = $TSEnvironment.Value("_SMSTSLogPath") + "\ApplyHPIA.log" # ApplyHPIA log location 
-$Softpaq = "SOFTPAQ"
-$HPIALogFile = $TSEnvironment.Value("_SMSTSLogPath") + "\HPIAInstall" # Log location for HPIA install.
-
-
-Log -Message "HPIA is about to start..." -type 1 -Component "HPIA" -LogFile $LogFile
-Log -Message "Loading script with version: $Scriptversion" -type 1 -Component "HPIA" -LogFile $LogFile
-
+function ConnectToAdminservice {
 
 # Attempt to read TSEnvironment variable AdminserviceUser
 $AdminserviceUser = $TSEnvironment.Value("AdminserviceUser")
@@ -145,12 +129,15 @@ else
 
 }
 
-        
 # Construct PSCredential object for authentication
 $EncryptedPassword = ConvertTo-SecureString -String $Password -AsPlainText -Force
 $Credential = New-Object -TypeName System.Management.Automation.PSCredential -ArgumentList @($AdminserviceUser, $EncryptedPassword)
 
-# Variables for ConfigMgr Adminservice
+}
+
+function CheckOS {
+
+    # Variables for ConfigMgr Adminservice
 if ([string]::IsNullOrEmpty($OSVersion))
 {
     Log -Message "OSVersion is not specified, getting OSVersion from WMI" -Component "HPIA" -type 1 -LogFile $LogFile
@@ -182,20 +169,89 @@ else
 {
     $WindowsBuild = $Build
 }
+}
 
-$Filter = "HPIA-$OSMajorVersion-$WindowsBuild-" + (Get-WmiObject -Class:Win32_ComputerSystem).Model + " " + (Get-WmiObject -Class:Win32_BaseBoard).Product
-$FilterPackages = "/SMS_Package?`$filter=contains(Name,'$($Filter)')"
-$AdminServiceURL = "https://{0}/AdminService/wmi" -f $SiteServer
-$AdminServiceUri = $AdminServiceURL + $FilterPackages
+function CheckOSInfo {
+    $Filter = "HPIA-$OSMajorVersion-$WindowsBuild-" + (Get-WmiObject -Class:Win32_ComputerSystem).Model + " " + (Get-WmiObject -Class:Win32_BaseBoard).Product
+    log -Message "Gathering information from the computer:" -Type 1 -Component HPIA -LogFile $LogFile				        
+    log -Message " - Computermodel: $((Get-WmiObject -Class:Win32_ComputerSystem).Model)" -Type 1 -Component HPIA -LogFile $LogFile				        
+    log -Message " - Baseboard: $((Get-WmiObject -Class:Win32_BaseBoard).Product)" -Type 1 -Component HPIA -LogFile $LogFile
+    log -Message " - OSMajorVersion: $($OSMajorVersion)" -Type 1 -Component HPIA -LogFile $LogFile	
+    log -Message " - WindowsBuild: $($WindowsBuild)" -Type 1 -Component HPIA -LogFile $LogFile			            
+    
+}
 
-log -Message "Gathering information from the computer:" -Type 1 -Component HPIA -LogFile $LogFile				        
-log -Message " - Computermodel: $((Get-WmiObject -Class:Win32_ComputerSystem).Model)" -Type 1 -Component HPIA -LogFile $LogFile				        
-log -Message " - Baseboard: $((Get-WmiObject -Class:Win32_BaseBoard).Product)" -Type 1 -Component HPIA -LogFile $LogFile
-log -Message " - OSMajorVersion: $($OSMajorVersion)" -Type 1 -Component HPIA -LogFile $LogFile	
-log -Message " - WindowsBuild: $($WindowsBuild)" -Type 1 -Component HPIA -LogFile $LogFile			        
-log -Message "Will use this filter to attempt to get the correct driver package from adminservice: $($Filter)" -Type 1 -Component HPIA -LogFile $LogFile				        
+function Invoke-Executable {
+    param(
+        [parameter(Mandatory = $true, HelpMessage = "Specify the file name or path of the executable to be invoked, including the extension")]
+        [ValidateNotNullOrEmpty()]
+        [string]$FilePath,
+        
+        [parameter(Mandatory = $false, HelpMessage = "Specify arguments that will be passed to the executable")]
+        [ValidateNotNull()]
+        [string]$Arguments
+    )
+    
+    # Construct a hash-table for default parameter splatting
+    $SplatArgs = @{
+        FilePath = $FilePath
+        NoNewWindow = $true
+        Passthru = $true
+        ErrorAction = "Stop"
+    }
+    
+    # Add ArgumentList param if present
+    if (-not([System.String]::IsNullOrEmpty($Arguments))) {
+        $SplatArgs.Add("ArgumentList", $Arguments)
+    }
+    
+    # Invoke executable and wait for process to exit
+    try {
+        $Invocation = Start-Process @SplatArgs
+        $Handle = $Invocation.Handle
+        $Invocation.WaitForExit()
+    }
+    catch [System.Exception] {
+        Write-Warning -Message $_.Exception.Message; break
+    }
+    
+    return $Invocation.ExitCode
+}
 
+
+# Construct TSEnvironment object
 try {
+    $TSEnvironment = New-Object -ComObject Microsoft.SMS.TSEnvironment -ErrorAction Stop
+}
+catch [System.Exception] {
+    Write-Warning -Message "Unable to construct Microsoft.SMS.TSEnvironment object" ; exit 3
+}
+
+# Set script settings.
+$Scriptversion = "2.0"
+$LogFile = $TSEnvironment.Value("_SMSTSLogPath") + "\ApplyHPIA.log" # ApplyHPIA log location 
+$Softpaq = "SOFTPAQ"
+$HPIALogFile = $TSEnvironment.Value("_SMSTSLogPath") + "\HPIAInstall" # Log location for HPIA install.
+
+Log -Message "HPIA is about to start..." -type 1 -Component "HPIA" -LogFile $LogFile
+Log -Message "Loading script with version: $Scriptversion" -type 1 -Component "HPIA" -LogFile $LogFile
+
+if (-not $Online -eq "OnlyOnline")
+{
+    Log -Message "Script was set to check if package exists in ConfigMgr" -type 1 -Component "HPIA" -LogFile $LogFile
+    
+    # Call function ConnectToAdminService
+    ConnectToAdminservice
+
+    CheckOS
+    CheckOSInfo
+
+    $FilterPackages = "/SMS_Package?`$filter=contains(Name,'$($Filter)')"
+    $AdminServiceURL = "https://{0}/AdminService/wmi" -f $SiteServer
+    $AdminServiceUri = $AdminServiceURL + $FilterPackages
+    log -Message "Will use this filter to attempt to get the correct driver package from adminservice: $($Filter)" -Type 1 -Component HPIA -LogFile $LogFile				        
+
+    try {
         log -Message "Trying to access adminservice with the following URL: $($AdminServiceUri)" -Type 1 -Component HPIA -LogFile $LogFile				        
         $AdminServiceResponse = Invoke-RestMethod $AdminServiceUri -Method Get -Credential $Credential -ErrorAction Stop
         log -Message "Found the correct driver package from adminservice:" -Type 1 -Component HPIA -LogFile $LogFile
@@ -204,7 +260,7 @@ try {
         log -Message "  - Name: $($HPIAPackage.Name)" -Type 1 -Component HPIA -LogFile $LogFile				
         log -Message "  - PackageID: $($HPIAPackage.PackageID)" -Type 1 -Component HPIA -LogFile $LogFile				
         }
-catch [System.Security.Authentication.AuthenticationException] {
+    catch [System.Security.Authentication.AuthenticationException] {
 					
 	# Attempt to ignore self-signed certificate binding for AdminService
 	# Convert encoded base64 string for ignore self-signed certificate validation functionality, certification is genereic and no need for change. 
@@ -225,24 +281,22 @@ catch [System.Security.Authentication.AuthenticationException] {
 
 	}
 	catch [System.Exception] {
-		# Throw error code
+		# Throw error code - DEV maybre use IF to set if package should be downloaded from online and contiune
 		log -Message "Failed to retrive driver package from ConfigMgr Adminservice for $($Filter)" -Type 3 -Component HPIA -LogFile $LogFile				
         $Errorcode = "Failed to retrive driver package from ConfigMgr Adminservice for $($Filter), please check logfile $LogFile for more information."
         (new-object -ComObject Microsoft.SMS.TsProgressUI).CloseProgressDialog() ; (new-object -ComObject wscript.shell).Popup("$($Errorcode) ",0,'Warning',0x0 + 0x30) ; Exit 0
         Throw
 	}
-}
-catch {
+    }
+    catch {
 	# Throw error code
 		log -Message "Failed to retrive driver package from ConfigMgr Adminservice for $($Filter)." -Type 3 -Component HPIA -LogFile $LogFile				
         $Errorcode = "Failed to retrive driver package from ConfigMgr Adminservice for $($Filter), please check logfile $LogFile for more information."
         (new-object -ComObject Microsoft.SMS.TsProgressUI).CloseProgressDialog() ; (new-object -ComObject wscript.shell).Popup("$($Errorcode) ",0,'Warning',0x0 + 0x30) ; Exit 0
         Throw
-}
+    }
 
-# Should have a check to see $HPIAPackage.PackageID contain something.
-    
-# Setting TS variabels after Admin service has returned correct objects.    
+    # Setting TS variabels after Admin service has returned correct objects.    
 $TSEnvironment.value("OSDDownloadDestinationLocationType") = "$($DownloadPath)"
 $TSEnvironment.value("OSDDownloadContinueDownloadOnError") = "1"
 $TSEnvironment.value("OSDDownloadDownloadPackages") = "$($HPIAPackage.PackageID)"
@@ -271,228 +325,5 @@ if (-not [string]::IsNullOrEmpty($CustomTSVariable))
 
 }
 
-function Invoke-Executable {
-		param(
-			[parameter(Mandatory = $true, HelpMessage = "Specify the file name or path of the executable to be invoked, including the extension")]
-			[ValidateNotNullOrEmpty()]
-			[string]$FilePath,
-			
-			[parameter(Mandatory = $false, HelpMessage = "Specify arguments that will be passed to the executable")]
-			[ValidateNotNull()]
-			[string]$Arguments
-		)
-		
-		# Construct a hash-table for default parameter splatting
-		$SplatArgs = @{
-			FilePath = $FilePath
-			NoNewWindow = $true
-			Passthru = $true
-			ErrorAction = "Stop"
-		}
-		
-		# Add ArgumentList param if present
-		if (-not([System.String]::IsNullOrEmpty($Arguments))) {
-			$SplatArgs.Add("ArgumentList", $Arguments)
-		}
-		
-		# Invoke executable and wait for process to exit
-		try {
-			$Invocation = Start-Process @SplatArgs
-			$Handle = $Invocation.Handle
-			$Invocation.WaitForExit()
-		}
-		catch [System.Exception] {
-			Write-Warning -Message $_.Exception.Message; break
-		}
-		
-		return $Invocation.ExitCode
-	}
-
-# Download Drivers with OSDDownloadContent
-log -message "Starting package content download process, this might take some time" -Type 1 -Component HPIA -LogFile $LogFile
-$ReturnCode = Invoke-Executable -FilePath (Join-Path -Path $env:windir -ChildPath "CCM\OSDDownloadContent.exe")
-
-    # Match on return code
-	if ($ReturnCode -eq 0) {
-		log -message "Successfully downloaded package content with PackageID: $($HPIAPackage.PackageID)" -Type 1 -Component HPIA -LogFile $LogFile
-        write-host "Successfully downloaded package content with PackageID: $($HPIAPackage.PackageID)" -ForegroundColor green
-	}
-	else {
-		log -Message "Failed to download or driver package is missing in ConfigMgr: $($Filter)." -Type 3 -Component HPIA -LogFile $LogFile
-				
-		# Throw terminating error
-        $Errorcode = "Failed to download or driver package is missing in ConfigMgr: $($Filter)."
-        write-host "Failed to download or driver package is missing in ConfigMgr: $($Filter)." -ForegroundColor red
-        (new-object -ComObject Microsoft.SMS.TsProgressUI).CloseProgressDialog() ; (new-object -ComObject wscript.shell).Popup("$($Errorcode) ",0,'Warning',0x0 + 0x30) ; Exit 0
-        Exit 1
-	}
-
-# Set Softpaq to Softpaq01 to get an working directory. 
-($ContentPath) = $TSEnvironment.Value("softpaq01") 
-Log -Message "Setting TS variable Softpaq01: $($ContentPath)" -type 1 -LogFile $LogFile -Component HPIA
-
-log -Message "Starting to reset the task sequence variable that were used to download drivers" -Type 1 -Component HPIA -LogFile $LogFile
-$TSEnvironment.Value("OSDDownloadDownloadPackages") = [System.String]::Empty	
-$TSEnvironment.Value("OSDDownloadDestinationLocationType") = [System.String]::Empty
-$TSEnvironment.Value("OSDDownloadDestinationVariable") = [System.String]::Empty
-$TSEnvironment.Value("OSDDownloadDestinationPath") = [System.String]::Empty
-
-log -Message "Setting task sequence variable OSDDownloadDownloadPackages to a blank value" -Type 1 -Component HPIA -LogFile $LogFile
-log -Message "Setting task sequence variable OSDDownloadDestinationLocationType to a blank value" -Type 1 -Component HPIA -LogFile $LogFile
-log -Message "Setting task sequence variable OSDDownloadDestinationVariable to a blank value" -Type 1 -Component HPIA -LogFile $LogFile
-log -message "Setting task sequence variable OSDDownloadDestinationPath to a blank value" -Type 1 -Component HPIA -LogFile $LogFile
-
-
-
- if (-not $PreCache)
- {
-    try
-    { 
-     # Check for BIOS File.
-       if ($BIOSPwd -ne "")
-       {
-            Log -Message "Check if BIOS file exists." -type 1 -Component "HPIA" -LogFile $LogFile  
-            $BIOSPwd = Get-childitem -Path $ContentPath -Filter "*.bin"
-            $Argument = "/Operation:Analyze /Action:install /Selection:All /OfflineMode:Repository /noninteractive /Debug /SoftpaqDownloadFolder:C:\HPIA /ReportFolder:$($HPIALogFile) /BIOSPwdFile:$($BIOSPwd)"              
-            Log -Message "BIOS file found, will start HPIA with following install arguments: $($Argument)." -type 1 -Component "HPIA" -LogFile $LogFile  
-          
-       }
-       else {
-            $Argument = "/Operation:Analyze /Action:install /Selection:All /OfflineMode:Repository /noninteractive /Debug /SoftpaqDownloadFolder:C:\HPIA /ReportFolder:$($HPIALogFile)" 
-            Log -Message "BIOS file not found, will start HPIA with following install arguments: $($Argument)." -type 1 -Component "HPIA" -LogFile $LogFile  
- 
-       }
-
-        # Start HPIA Update process 
-        Log -Message "Starting HPIA installation." -type 1 -Component "HPIA" -LogFile $LogFile
-        $HPIAProcess = Start-Process -Wait -FilePath "HPImageAssistant.exe" -WorkingDirectory "$ContentPath" -ArgumentList "$Argument" -PassThru
-        $Handle = $HPIAProcess.Handle # Cache Info $HPIAProcess.Handle
-        $HPIAProcess.WaitForExit();
-        $HPIAProcess.ExitCode
-
-
-        If ($HPIAProcess.ExitCode -eq 0)
-        {
-            
-            Log -Message "Installations is completed" -Component "HPIA" -Type 1 -logfile $LogFile
-            write-host "Installations is completed With Exit 0" -ForegroundColor Green
-
-        }
-
-        If ($HPIAProcess.ExitCode -eq 3010)
-        {
-        
-            Log -Message "Install Reboot Required, SoftPaq installations are successful, and at least one requires a reboot" -Component "HPIA" -Type 1 -logfile $LogFile
-
-        }
-        elseif ($HPIAProcess.ExitCode -eq 256) 
-        {
-            Log -Message "The analysis returned no recommendation." -Component "HPIA" -Type 2 -logfile $LogFile
-            $Errorcode = "The analysis returned no recommendation.."
-            (new-object -ComObject Microsoft.SMS.TsProgressUI).CloseProgressDialog() ; (new-object -ComObject wscript.shell).Popup("$($Errorcode) ",0,'Warning',0x0 + 0x30) ; Exit 0
-            Exit 256
-        }
-        elseif ($HPIAProcess.ExitCode -eq 3020) 
-        {
-            Log -Message "Installed failed n one or more softpaqs, needs second pass. 3020" -Component "HPIA" -Type 2 -logfile $LogFile
-        }
-        elseif ($HPIAProcess.ExitCode -eq 4096) 
-        {
-            Log -Message "This platform is not supported!" -Type 3 -Component "HPIA" -Type 3 -logfile $LogFile
-            $Errorcode = "This platform is not supported!"
-            (new-object -ComObject Microsoft.SMS.TsProgressUI).CloseProgressDialog() ; (new-object -ComObject wscript.shell).Popup("$($Errorcode) ",0,'Warning',0x0 + 0x30) ; Exit 0
-            exit 4096
-        }
-        elseif ($HPIAProcess.ExitCode -eq 16384) {
-        
-            Log -Message "No matching configuration found on HP.com" -Type 3 -Component "HPIA" -Type 3 -logfile $LogFile
-            $Errorcode = "No matching configuration found on HP.com"
-            (new-object -ComObject Microsoft.SMS.TsProgressUI).CloseProgressDialog() ; (new-object -ComObject wscript.shell).Popup("$($Errorcode) ",0,'Warning',0x0 + 0x30) ; Exit 0
-        }
-        Else
-        {
-            Log -Message "Process exited with code $($HPIAProcess.ExitCode). Expecting 0." -type 1 -Component "HPIA" -LogFile $LogFile
-            $Errorcode = "Process exited with code $($HPIAProcess.ExitCode) . Expecting 0." 
-        }
-
-        if ($ExtraFilesCheck)
-        {
-            Log -Message "Checking if there are any extra SP files to install" -Type 1 -Component "HPIA" -LogFile $LogFile
-            $ExtraSPFilesPath = Join-Path $ContentPath "ExtraSPFiles"
-            if (Test-Path $ExtraSPFilesPath)
-            {
-                $ExtraSPFiles = Get-ChildItem $ExtraSPFilesPath | Where-Object {$_.Name -like "sp*.exe"}
-                $ExtraSPFilesCount = $ExtraSPFiles.Count
-                if ($ExtraSPFilesCount -gt 0)
-                {
-                    Log -Message "Found $ExtraSPFilesCount SP files to install" -Type 1 -Component "HPIA" -LogFile $LogFile
-                    foreach ($SPFile in $ExtraSPFiles)
-                    {
-                        try
-                        {
-                            Log -Message "Installing extra SP file: $($SPFile.Name)" -Type 1 -Component "HPIA" -LogFile $LogFile
-                            $SPFilePath = $SPFile.Fullname
-                            Invoke-Executable $SPFilePath -Arguments "-s" -ErrorAction Stop
-                            Log -Message "Success installing extra SP file: $($SPFile.Name)" -Type 1 -Component "HPIA" -LogFile $LogFile
-                        }
-                        catch
-                        {
-                            Log -Message "FAILED installing extra SP file: $($SPFile.Name)" -Type 3 -Component "HPIA" -LogFile $LogFile
-                            continue
-                        }
-                    }
-                    Log -Message "Done installing extra SP files" -Type 1 -Component "HPIA" -LogFile $LogFile
-                }
-                else
-                {
-                    Log -Message "No extra SP files found in $ExtraSPFilesPath (named sp*.exe)" -Type 1 -Component "HPIA" -LogFile $LogFile
-                }
-            }
-            else
-            {
-                Log -Message "No folder named ExtraSPFiles found in package root" -Type 1 -Component "HPIA" -LogFile $LogFile
-            }
-        
-            Log -Message "Checking if there are any extra INF files to apply" -Type 1 -Component "HPIA" -LogFile $LogFile
-            $ExtraINFFilesPath = Join-Path $ContentPath "ExtraINFFiles"
-            if (Test-Path $ExtraINFFilesPath)
-            {
-                $ExtraINFFiles = Get-ChildItem $ExtraINFFilesPath -Recurse | Where-Object {$_.Name -like "*.inf"}
-                $ExtraINFFilesCount = $ExtraINFFiles.Count
-                if ($ExtraINFFilesCount -gt 0)
-                {
-                    Log -Message "Found $ExtraINFFilesCount extra INF files to apply, starting pnputil to apply" -Type 1 -Component "HPIA" -LogFile $LogFile
-                    Invoke-Executable -FilePath "powershell.exe" -Arguments "pnputil /add-driver $ExtraINFFilesPath /subdirs /install"
-                    Log -Message "Done installing extra SP files" -Type 1 -Component "HPIA" -LogFile $LogFile
-                }
-                else
-                {
-                    Log -Message "No extra INF files found in $ExtraINFFilesPath (named *.inf, recursive search)" -Type 1 -Component "HPIA" -LogFile $LogFile
-                }
-            }
-            else
-            {
-                Log -Message "No folder named ExtraINFFiles found in package root" -Type 1 -Component "HPIA" -LogFile $LogFile
-            }
-        }
-
-        if ($CleanUp)
-        {
-            Remove-Item -Path "$env:SystemDrive\HPIA" -Recurse -Force -ErrorAction Ignore
-        }
-
-    }
-    catch 
-    {
-        Log -Message "Failed to start the HPImageAssistant.exe: $($_.Exception.Message)" -Component "HPIA" -type 3 -Logfile $Logfile
-        Exit $($_.Exception.Message)
-    }
 
 }
-
-else {
-    Log -Message "Script is running as Precache, skipping to install HPIA." -Type 2 -Component "HPIA" -logfile $LogFile
-
-}
-Log -Message "HPIA process is now completed and the following package has been installed to the computer: $($HPIAPackage.Name)" -Component "HPIA" -Type 1 -logfile $LogFile
-Log -Message "---------------------------------------------------------------------------------------------------------------------------------------------------" -type 1 -Component "HPIA" -LogFile $LogFile
