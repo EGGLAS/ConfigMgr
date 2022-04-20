@@ -33,26 +33,15 @@
 To-Do:
  - Fallback to latest support OS?
  - Should be able to run script in debug mode.
- - Write back to status message? 
-            2.1 - 2022-04-12 - Nicklas Eriksson - If the model does not exists in your enviroment it will set an variable to download drivers online.                                     
- 
-Mailfunktion för att hitta på datorer som itne finns i repot, (osupporterad men vi är snälla och släpper genom dessa.)
- - Idé vi sätter en TS variabel som vi plockar upp i slutet av TS som får skicka ut ett mejlet...
-Lägga upp maskiner som är osupporterad per automatik.
- - Detta ogillar jag men vi skulle kunna skriva till en CSV-fil som centrala HPIA scripet läser ut och lägger till?! 
-Hur löser vi prechache när vi kikar online?
-
-Behöver fundera hur vi ska reseta bioslösenordet variablen för resettar vi den i första steget för sedan falla tillbaka på TS så kan variablen vara tom?
+ - Write back to status message?  
 
  How to run the script:
+    - ApplyHPIA.ps1 -Siteserver "server.domain.local"
     - ApplyHPIA.ps1 -Siteserver "server.domain.local" -Build "20H2" -Online FallbackOnline  
     - ApplyHPIA.ps1 -Siteserver "server.domain.local" -Build "20H2" -DownloadPath "CCMCache" -BIOSPwd "Password.pwd"
     - ApplyHPIA.ps1 -Siteserver "server.domain.local" -Build "21H2" -OSVersion "Win11" -PreCache
     - ApplyHPIA.ps1 -Siteserver "server.domain.local" -Build "21H2" -BIOSPwd "Password.bin" -ExtraFilesCheck -CleanUp
     - ApplyHPIA.ps1 -Siteserver "server.domain.local" -Build "21H2" -BIOSPwd "Password.bin" -CleanUp
-
-
-
 
 
 Big shoutout and credit to Maurice Dualy and Nikolaj Andersen for their outstanding work with  Modern Driver Management for making this solution possible. 
