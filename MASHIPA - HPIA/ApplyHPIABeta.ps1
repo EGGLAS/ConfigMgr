@@ -33,11 +33,13 @@
 To-Do:
  - Fallback to latest support OS?
  - Should be able to run script in debug mode.
- - Write back to status message?  
-
+ - Write back to status message? 
+            2.1 - 2022-04-12 - Nicklas Eriksson - If the model does not exists in your enviroment it will set an variable to download drivers online.                                     
+ 
  How to run the script:
-    - ApplyHPIA.ps1 -Siteserver "server.domain.local"
-    - ApplyHPIA.ps1 -Siteserver "server.domain.local" -Build "20H2" -Online FallbackOnline  
+    - ApplyHPIA.ps1 -Siteserver "server.domain.local" 
+    - ApplyHPIA.ps1 -Siteserver "server.domain.local" -Online Online -Cleanup
+    - ApplyHPIA.ps1 -Siteserver "server.domain.local" -Build "20H2" -Online DoNotFallBackOnline  
     - ApplyHPIA.ps1 -Siteserver "server.domain.local" -Build "20H2" -DownloadPath "CCMCache" -BIOSPwd "Password.pwd"
     - ApplyHPIA.ps1 -Siteserver "server.domain.local" -Build "21H2" -OSVersion "Win11" -PreCache
     - ApplyHPIA.ps1 -Siteserver "server.domain.local" -Build "21H2" -BIOSPwd "Password.bin" -ExtraFilesCheck -CleanUp
@@ -83,7 +85,6 @@ param(
     [parameter(Mandatory = $false, HelpMessage = "Remove C:\HPIA when done")]
 	[switch]$CleanUp
 )
-
 
 function Log {
     Param (
@@ -271,9 +272,7 @@ try
         If ($HPIAProcess.ExitCode -eq 0)
         {
             
-            Log -Message "Installations is completed" -Component "HPIA" -Type 1 -logfile $LogFile
-            write-host "Installations is completed With Exit 0" -ForegroundColor Green
-
+            Log -Message "Installation is completed" -Component "HPIA" -Type 1 -logfile $LogFile
         }
 
         If ($HPIAProcess.ExitCode -eq 3010)
@@ -309,18 +308,18 @@ try
         }
         elseif ($HPIAProcess.ExitCode -eq 4097) {
             Log -Message " - HPIA installation failed" -Type 3 -Component "HPIA" -logfile $LogFile
-            Log -Message " - BIOS password might be missing" -Type 3 -Component "HPIA" -logfile $LogFile
-            $Errorcode = "BIOS password might be missing, check $LogFile might contain more information."
+            Log -Message " - The parameters are invalid, check $HPIALogFile for more information." -Type 3 -Component "HPIA" -logfile $LogFile
+            $Errorcode = "The parameters are invalid, check $LogFile or $HPIALogFile might contain more information."
             #(new-object -ComObject Microsoft.SMS.TsProgressUI).CloseProgressDialog() ; (new-object -ComObject wscript.shell).Popup("$($Errorcode) ",0,'Warning',0x0 + 0x30) ; Exit 0
             Exit 4097
 
         }
         elseif ($HPIAProcess.ExitCode -eq 8199) {
-            Log -Message " - The SoftPaq download failed." -Type 3 -Component "HPIA" -logfile $LogFile
-            $Errorcode = "The SoftPaq download failed, check $LogFile might contain more information."
-            #(new-object -ComObject Microsoft.SMS.TsProgressUI).CloseProgressDialog() ; (new-object -ComObject wscript.shell).Popup("$($Errorcode) ",0,'Warning',0x0 + 0x30) ; Exit 0
-            Exit 8199
-
+            Log -Message " - The SoftPaq download failed, check $HPIALogFile more information." -Type 2 -Component "HPIA" -logfile $LogFile
+            Log -Message " - Ignoring this error message, HPIA installation was done succesfully" -Type 2 -Component "HPIA" -logfile $LogFile
+            Log -Message "Process exited with code $($HPIAProcess.ExitCode). This is the same as Exit code 0 ." -type 1 -Component "HPIA" -LogFile $LogFile
+            Log -Message "Installation is completed" -Component "HPIA" -Type 1 -logfile $LogFile
+            
         }
         Else
         {
@@ -403,7 +402,6 @@ try
 
 }
     
-
 # Construct TSEnvironment object
 try {
     $TSEnvironment = New-Object -ComObject Microsoft.SMS.TSEnvironment -ErrorAction Stop
@@ -440,8 +438,6 @@ if ($Online -eq "FallbackOnline" -or "DoNotFallbackOnline")
     $AdminServiceUri = $AdminServiceURL + $FilterPackages
     log -Message "Using this filter to attempt to get the correct driver package from adminservice: $($Filter)" -Type 1 -Component HPIA -LogFile $LogFile				        
 
-
-    # Behöver ha kontroll att invoke-restmethod innehåller något..
     try {
             log -Message " - Accessing adminservice with the following URL: $($AdminServiceUri)" -Type 1 -Component HPIA -LogFile $LogFile				        
             $AdminServiceResponse = Invoke-RestMethod $AdminServiceUri -Method Get -Credential $Credential -ErrorAction Stop
@@ -613,7 +609,8 @@ if ($Online -eq "FallbackOnline" -or "DoNotFallbackOnline")
                     Log -Message "Attempting to read BIOS password from TS environment variable 'HPIA_BIOSPassword'" -Type 1 -Component "HPIA" -LogFile $LogFile
                     Log -Message " - Successfully read BIOS password from TS environment variable 'HPIA_BIOSPassword': ********" -Type 1 -Component "HPIA" -LogFile $LogFile
                     [System.Environment]::SetEnvironmentVariable('biospass',"$BIOSPassword") #Set BIOS Password as environment variable, will be cleared on last line in script.
-                    $Argument = "/Operation:Analyze /Action:install /Selection:All /OfflineMode:Repository /noninteractive /Debug /SoftpaqDownloadFolder:$($SoftpaqDownloadFolder) /ReportFolder:$($HPIALogFile) /BIOSPwdEnv:biospass"
+                    #$Argument = "/Operation:Analyze /Action:install /Selection:All /OfflineMode:Repository /noninteractive /Debug /SoftpaqDownloadFolder:$($SoftpaqDownloadFolder) /ReportFolder:$($HPIALogFile) /BIOSPwdEnv:biospass"
+                    $Argument = "/Action:install /Selection:All /OfflineMode:Repository /noninteractive /Debug /SoftpaqDownloadFolder:$($SoftpaqDownloadFolder) /ReportFolder:$($HPIALogFile) /BIOSPwdEnv:biospass"
                     Log -Message "BIOS enviroment variable found, will start HPIA with following install arguments: $($Argument)." -type 1 -Component "HPIA" -LogFile $LogFile                 
 
                 }
@@ -628,6 +625,7 @@ if ($Online -eq "FallbackOnline" -or "DoNotFallbackOnline")
              StartHPIA
             
             # Clear BIOSPassword
+            $TSEnvironment.Value("OSDDownloadDestinationPath") = [System.String]::Empty
             [System.Environment]::SetEnvironmentVariable('biospass','Secret')
             Log -Message "Successfully cleared BIOSPassword enviroment variable" -type 1 -Component "HPIA" -LogFile $LogFile  
 
@@ -658,9 +656,7 @@ if ($Online -eq "FallbackOnline" -or "DoNotFallbackOnline")
             $FallbackOnline = "NewModel"
             log -Message " - Updating variable 'FallbackOnline' to: NewModel" -Type 1 -Component HPIA -LogFile $LogFile				
 
-        }
-
-        
+        }       
     }
 }
 
@@ -677,12 +673,14 @@ if (($Online -eq "Online") -or ($FallbackOnline -eq "NewModel")) {
     
     if ($Online -eq "FallbackOnline")
     {
-        Log -Message "New computermodel found updating TS variable 'NewComputerModel' with the following value: $NewComputerModel" -Type 1 -Component "HPIA" -logfile $LogFile 
+        Log -Message "New computermodel found updating TS variable 'NewComputerModel' with the following value: $NewComputerModel" -Type 1 -Component "HPIA" -logfile $LogFile
+         
         $NewComputerModel = $Baseboard + "," + $ComputerSystem + "," + "$WindowsBuild" + "," + "$OSMajorVersion"
+        $TSEnvironment.value("OSDDownloadDownloadPackages") = "$($NewComputerModel)"
+
         Log -Message " - Done with updating TS variable 'NewComputerModel'" -Type 1 -Component "HPIA" -logfile $LogFile 
 
     }
-
 
     #Setup LOCALAPPDATA Variable
     [System.Environment]::SetEnvironmentVariable('LOCALAPPDATA',"$env:SystemDrive\Windows\system32\config\systemprofile\AppData\Local")
@@ -861,7 +859,6 @@ if (($Online -eq "Online") -or ($FallbackOnline -eq "NewModel")) {
     }
     Set-Location "$HPIAPath\"
     
-
     if (-not $PreCache)
     {
       $SoftpaqDownloadFolder = $HPIAPath  
@@ -894,11 +891,9 @@ if (($Online -eq "Online") -or ($FallbackOnline -eq "NewModel")) {
     else {
             Log -Message "Script is running as Precache, skipping to install HPIA." -Type 2 -Component "HPIA" -logfile $LogFile   
         }
-
         
     [System.Environment]::SetEnvironmentVariable('biospass','Secret')
     Log -Message "Successfully cleared BIOSPassword enviroment variable" -type 1 -Component "HPIA" -LogFile $LogFile  
-
 }
 
 Log -Message "HPIA process is now complete" -Component "HPIA" -Type 1 -logfile $LogFile
