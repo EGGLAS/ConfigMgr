@@ -608,9 +608,10 @@ if ($Online -eq "FallbackOnline" -or "DoNotFallbackOnline")
                 {
                     Log -Message "Attempting to read BIOS password from TS environment variable 'HPIA_BIOSPassword'" -Type 1 -Component "HPIA" -LogFile $LogFile
                     Log -Message " - Successfully read BIOS password from TS environment variable 'HPIA_BIOSPassword': ********" -Type 1 -Component "HPIA" -LogFile $LogFile
+                    $TSEnvironment.Value("OSDDownloadDestinationPath") = [System.String]::Empty
+                    Log -Message " - Setting task sequence variable 'HPIA_BIOSPassword' to a blank value" -Type 1 -Component "HPIA" -logfile $LogFile
                     [System.Environment]::SetEnvironmentVariable('biospass',"$BIOSPassword") #Set BIOS Password as environment variable, will be cleared on last line in script.
-                    #$Argument = "/Operation:Analyze /Action:install /Selection:All /OfflineMode:Repository /noninteractive /Debug /SoftpaqDownloadFolder:$($SoftpaqDownloadFolder) /ReportFolder:$($HPIALogFile) /BIOSPwdEnv:biospass"
-                    $Argument = "/Action:install /Selection:All /OfflineMode:Repository /noninteractive /Debug /SoftpaqDownloadFolder:$($SoftpaqDownloadFolder) /ReportFolder:$($HPIALogFile) /BIOSPwdEnv:biospass"
+                    $Argument = "/Operation:Analyze /Action:install /Selection:All /OfflineMode:Repository /noninteractive /Debug /SoftpaqDownloadFolder:$($SoftpaqDownloadFolder) /ReportFolder:$($HPIALogFile) /BIOSPwdEnv:biospass"
                     Log -Message "BIOS enviroment variable found, will start HPIA with following install arguments: $($Argument)." -type 1 -Component "HPIA" -LogFile $LogFile                 
 
                 }
@@ -625,7 +626,7 @@ if ($Online -eq "FallbackOnline" -or "DoNotFallbackOnline")
              StartHPIA
             
             # Clear BIOSPassword
-            $TSEnvironment.Value("OSDDownloadDestinationPath") = [System.String]::Empty
+            
             [System.Environment]::SetEnvironmentVariable('biospass','Secret')
             Log -Message "Successfully cleared BIOSPassword enviroment variable" -type 1 -Component "HPIA" -LogFile $LogFile  
 
