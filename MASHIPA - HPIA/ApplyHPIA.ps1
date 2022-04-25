@@ -33,7 +33,6 @@ To-Do:
  - Should be able to run script in debug mode.
  - Write back to status message? 
 
-
   TS variabels that can be picked up during OSD,IPU or driverupdate:
     - NewComputerModel update if the model is not supported in the enivorment and set the correct naming standard that are used in supportedmodels.csv. You can send an notification with a custom script either by mail or to a teams channel. 
     - CustomTSVariable sets the PackageID for the package
@@ -46,7 +45,6 @@ To-Do:
     - ApplyHPIA.ps1 -Siteserver "server.domain.local" -Build "21H2" -OSVersion "Win11" -PreCache
     - ApplyHPIA.ps1 -Siteserver "server.domain.local" -Build "21H2" -BIOSPwd "Password.bin" -ExtraFilesCheck -CleanUp
     - ApplyHPIA.ps1 -Siteserver "server.domain.local" -Build "21H2" -BIOSPwd "Password.bin" -CleanUp
-
 
 Big shoutout and credit to Maurice Dualy and Nikolaj Andersen for their outstanding work with  Modern Driver Management for making this solution possible. 
 Some code are borrowed from their awesome solution to making this solution work.
