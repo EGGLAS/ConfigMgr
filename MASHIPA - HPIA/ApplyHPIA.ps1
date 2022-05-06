@@ -2,8 +2,8 @@
  Purpose: Download HP Drivers and apply HPIA drivers during OS Deployment or OS Upgrade.
  Link to project: https://github.com/EGGLAS/ConfigMgr
  Created: 2021-02-11
- Latest updated: 2022-04-21
- Current Version: 2.1
+ Latest updated: 2022-05-05
+ Current Version: 2.2
  Changelog: 1.0 - 2021-02-11 - Nicklas Eriksson -  Script was created. Purpose to replace the old script with purpose to use one script to handle downloading of drivers and install HPIA.
             1.1 - 2021-04-30 - Daniel Grahns - added a "c" that was missing just because I wanted to be in the changelog ;P and some other stuff that was hillarious ("reboob"), popup added on error.
             1.2 - 2021-04-30 - Nicklas Eriksson & Daniel Grahns -Added PreCache function.
@@ -28,6 +28,7 @@
                                     - HPIA_BIOSPassword, leverage HPIA Password for both on-prem and online 
                                     - NewComputerModel can be used later in task sequence if you want to get reports if you are insallating a new HP model in your enviroment.
                                 - Added paramter Online to support access direct to HPIA.
+            2.2 - 2022-05-05 - Nicklas Eriksson - Added check against if the model is supported by HP for that OS and version that you are trying to install.
 To-Do:
  - Fallback to latest support OS?
  - Should be able to run script in debug mode.
@@ -411,7 +412,7 @@ catch [System.Exception] {
 }
 
 # Set script settings.
-$Scriptversion = "2.1"
+$Scriptversion = "2.2"
 $LogFile = $TSEnvironment.Value("_SMSTSLogPath") + "\ApplyHPIA.log" # ApplyHPIA log location 
 $Softpaq = "SOFTPAQ"
 $HPIALogFile = $TSEnvironment.Value("_SMSTSLogPath") + "\HPIAInstall" # Log location for HPIA install.
@@ -724,177 +725,202 @@ if (($Online -eq "Online") -or ($FallbackOnline -eq "NewModel")) {
     Log -Message " - Starting to import module" -Type 1 -Component "HPIA" -LogFile $LogFile
     Import-Module -Name $ModuleName -Force
     Log -Message " - Successfully installed and impoorted module $ModuleName" -Type 1 -Component "HPIA" -LogFile $LogFile
-
-
-    Log -Message "Creating HPIA Folder: $HPIAPath" -type 1 -Component "HPIA" -LogFile $LogFile
-    New-Item -ItemType Directory -Path $HPIAPath -ErrorAction Silentlycontinue
-    Log -Message " - Successfully created folder: $HPIAPath" -type 1 -Component "HPIA" -LogFile $LogFile
-
-    Log -Message "----- Starting Remediation for Module $ModuleName -----" -Type 2 -LogFile $LogFile
-    [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12 # Force Powershell to use TLS1.2
-    Log -Message " - Forcing Powershell to use TLS1.2" -Type 2 -LogFile $LogFile
-    Write-Output " - Forcing Powershell to use TLS1.2 $RequiredVersion"
-    [version]$RequiredVersion = (Find-Module -Name $ModuleName).Version
-    $status = $null
-    $Status = Get-InstalledModule -Name $ModuleName -ErrorAction SilentlyContinue
-    if ($Status.Version -lt $RequiredVersion)
+    Log -Message "Checking if the model is supported by HP" -Type 1 -Component "HPCMSL" -LogFile $LogFile
+    switch ($OSMajorVersion)
     {
-    if ($Status){Uninstall-Module $ModuleName -AllVersions -Force}
-    Write-Output "Installing $ModuleName to Latest Version $RequiredVersion"
-    Log -Message " - Installing $ModuleName to Latest Version $RequiredVersion" -Type 1 -LogFile $LogFile
-    Install-Module -Name $ModuleName -Force -AllowClobber -AcceptLicense -Scope AllUsers
-    
-    #Confirm
-    $InstalledVersion = [Version](Get-InstalledModule -Name $ModuleName -ErrorAction SilentlyContinue).Version
-    if (!($InstalledVersion)){$InstalledVersion = '1.0.0.1'}
-        if ($InstalledVersion -ne $RequiredVersion)
-        {
-            Write-Output "Failed to Upgrade Module $ModuleName to $RequiredVersion"
-            Write-Output "Currently on Version $InstalledVersion"
-            Log -Message "Failed to Upgrade Module $ModuleName to $RequiredVersion" -Type 3 -LogFile $LogFile
-            Log -Message "Currently on Version $InstalledVersion" -Type 3 -LogFile $LogFile
+        'Win10' {
+         $HPOSMajorVersion = "Windows 10"
         }
-    elseif ($InstalledVersion -ne $RequiredVersion)
-        {
-            Write-Output "Successfully Upgraded Module $ModuleName to $RequiredVersion"
-            Log -Message "Successfully Upgraded Module $ModuleName to $RequiredVersion" -Type 1 -LogFile $LogFile
+        'Win11' {
+         $HPOSMajorVersion = "Windows 11"
         }
     }
-    else
-    {
-        Write-Output "$ModuleName already Installed with $($Status.Version)"
-        Log -Message " - $ModuleName already Installed with $($Status.Version)" -Type 1 -LogFile $LogFile
-    }
+    $CheckIfModelIsSupportedbyHP = Get-HPDeviceDetails -OSList | Where-Object {($_.OperatingSystem -like "*$HPOSMajorVersion*") -and ($_.OperatingSystemRelease -eq "$WindowsBuild")} |Select-Object OperatingSystem, OperatingSystemRelease
 
-    Set-Location -Path $HPIAPath
-    Log -Message "Starting to install HPIA" -Type 1 -LogFile $LogFile
-
-    try
+    if (-not([string]::IsNullOrEmpty($CheckIfModelIsSupportedbyHP))) 
     {
-        Install-HPImageAssistant -Extract -DestinationPath $HPIAPath -ErrorAction stop
+        Log -Message " - $Computersystem is supported by HP, HPIA can procceed" -Type 1 -Component "HPCMSL" -LogFile $LogFile
+        Log -Message "Creating HPIA Folder: $HPIAPath" -type 1 -Component "HPIA" -LogFile $LogFile
+        New-Item -ItemType Directory -Path $HPIAPath -ErrorAction Silentlycontinue
+        Log -Message " - Successfully created folder: $HPIAPath" -type 1 -Component "HPIA" -LogFile $LogFile
 
-    }
-    catch 
-    {
-        Log -Message "Someting went wrong.." -Type 3 -Component Error -LogFile $LogFile
-        Log -Message " - Error code: $($_.Exception.Message)" -Type 3 -Component "Error" -LogFile $LogFile
-
-    }
-    
-    if (Test-Path "$HPIAPath\HPImageAssistant.exe")
-    {
-        Write-Output "HPIA Downloaded and installed"
-        Log -Message " - HPIA Downloaded and installed" -Type 1 -LogFile $LogFile
-    }
-    else
-    {
-        Write-Output "HPIA install Failed"
-        Log -Message " - HPIA install Failed" -Type 1 -LogFile $LogFile
-        Exit 404
-    }
-
-        if (Test-Path "$HPIAPath\Repository")
+        Log -Message "----- Starting Remediation for Module $ModuleName -----" -Type 2 -LogFile $LogFile
+        [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12 # Force Powershell to use TLS1.2
+        Log -Message " - Forcing Powershell to use TLS1.2" -Type 2 -LogFile $LogFile
+        Write-Output " - Forcing Powershell to use TLS1.2 $RequiredVersion"
+        [version]$RequiredVersion = (Find-Module -Name $ModuleName).Version
+        $status = $null
+        $Status = Get-InstalledModule -Name $ModuleName -ErrorAction SilentlyContinue
+        if ($Status.Version -lt $RequiredVersion)
         {
-            Log -Message " - Repository for HPIA exists, no need to create folder structure" -type 1 -LogFile $LogFile -Component HPIA
-
-            Set-Location -Path "$HPIAPath\Repository"
-            Log -Message " - Starting Initialize-Repository" -Type 1 -LogFile $LogFile
-            Initialize-Repository
+        if ($Status){Uninstall-Module $ModuleName -AllVersions -Force}
+        Write-Output "Installing $ModuleName to Latest Version $RequiredVersion"
+        Log -Message " - Installing $ModuleName to Latest Version $RequiredVersion" -Type 1 -LogFile $LogFile
+        Install-Module -Name $ModuleName -Force -AllowClobber -AcceptLicense -Scope AllUsers
+        
+        #Confirm
+        $InstalledVersion = [Version](Get-InstalledModule -Name $ModuleName -ErrorAction SilentlyContinue).Version
+        if (!($InstalledVersion)){$InstalledVersion = '1.0.0.1'}
+            if ($InstalledVersion -ne $RequiredVersion)
+            {
+                Write-Output "Failed to Upgrade Module $ModuleName to $RequiredVersion"
+                Write-Output "Currently on Version $InstalledVersion"
+                Log -Message "Failed to Upgrade Module $ModuleName to $RequiredVersion" -Type 3 -LogFile $LogFile
+                Log -Message "Currently on Version $InstalledVersion" -Type 3 -LogFile $LogFile
+            }
+        elseif ($InstalledVersion -ne $RequiredVersion)
+            {
+                Write-Output "Successfully Upgraded Module $ModuleName to $RequiredVersion"
+                Log -Message "Successfully Upgraded Module $ModuleName to $RequiredVersion" -Type 1 -LogFile $LogFile
+            }
         }
         else
         {
-            Log -Message " - Repository for HPIA did not exists, creating folder" -type 1 -LogFile $LogFile -Component HPIA
-            New-Item -ItemType Directory -Path "$HPIAPath\Repository" -ErrorAction Stop
-            Set-Location -Path "$HPIAPath\Repository"
-            Initialize-Repository
+            Write-Output "$ModuleName already Installed with $($Status.Version)"
+            Log -Message " - $ModuleName already Installed with $($Status.Version)" -Type 1 -LogFile $LogFile
+        }
+
+
+
+
+        Set-Location -Path $HPIAPath
+        Log -Message "Starting to install HPIA" -Type 1 -LogFile $LogFile
+
+        try
+        {
+            Install-HPImageAssistant -Extract -DestinationPath $HPIAPath -ErrorAction stop
+
+        }
+        catch 
+        {
+            Log -Message "Someting went wrong.." -Type 3 -Component Error -LogFile $LogFile
+            Log -Message " - Error code: $($_.Exception.Message)" -Type 3 -Component "Error" -LogFile $LogFile
+
         }
         
-    Add-RepositoryFilter -platform $Baseboard -os "$OSMajorVersion"-osver $WindowsBuild -category dock
-    Log -Message " - Applying repository filter to $Computersystem repository to download: Dock" -type 1 -LogFile $LogFile -Component HPIA
-    
-    Add-RepositoryFilter -platform $Baseboard -os "$OSMajorVersion"-osver $WindowsBuild -category driver
-    Log -Message " - Applying repository filter to $Computersystem repository to download: Driver" -type 1 -LogFile $LogFile -Component HPIA
-    
-    Add-RepositoryFilter -platform $Baseboard -os "$OSMajorVersion"-osver $WindowsBuild -category firmware
-    Log -Message " - Applying repository filter to $Computersystem repository to download: Firmware" -type 1 -LogFile $LogFile -Component HPIA
-    
-    Add-RepositoryFilter -platform $Baseboard -os "$OSMajorVersion"-osver $WindowsBuild -category bios
-    Log -Message " - Applying repository filter to $Computersystem repository to download: BIOS" -type 1 -LogFile $LogFile -Component HPIA
+        if (Test-Path "$HPIAPath\HPImageAssistant.exe")
+        {
+            Write-Output "HPIA Downloaded and installed"
+            Log -Message " - HPIA Downloaded and installed" -Type 1 -LogFile $LogFile
+        }
+        else
+        {
+            Write-Output "HPIA install Failed"
+            Log -Message " - HPIA install Failed" -Type 1 -LogFile $LogFile
+            Exit 404
+        }
 
-    Log -Message " - Invoking repository sync with the following filter (might take some time):" -type 1 -LogFile $LogFile -Component HPIA
-    Log -Message "   - Computersystem: $Computersystem" -Type 1 -LogFile $LogFile -Component HPIA
-    Log -Message "   - Baseboard: $Baseboard" -Type 1 -LogFile $LogFile -Component HPIA
-    Log -Message "   - OSMajorversion: $OSMajorVersion" -Type 1 -LogFile $LogFile -Component HPIA
-    Log -Message "   - WindowsBuild: $WindowsBuild" -Type 1 -LogFile $LogFile -Component HPIA
+            if (Test-Path "$HPIAPath\Repository")
+            {
+                Log -Message " - Repository for HPIA exists, no need to create folder structure" -type 1 -LogFile $LogFile -Component HPIA
 
-    Write-Output "Invoking repository sync for $Computersystem $Baseboard. OS: "$OSMajorVersion", $WindowsBuild (might take some time)"
-    try
-    {
-        Log -Message " - Starting Repository sync" -LogFile $LogFile -Type 1 -Component HPIA
-        Set-RepositoryConfiguration -Setting OfflineCacheMode -CacheValue Enable
+                Set-Location -Path "$HPIAPath\Repository"
+                Log -Message " - Starting Initialize-Repository" -Type 1 -LogFile $LogFile
+                Initialize-Repository
+            }
+            else
+            {
+                Log -Message " - Repository for HPIA did not exists, creating folder" -type 1 -LogFile $LogFile -Component HPIA
+                New-Item -ItemType Directory -Path "$HPIAPath\Repository" -ErrorAction Stop
+                Set-Location -Path "$HPIAPath\Repository"
+                Initialize-Repository
+            }
+            
+        Add-RepositoryFilter -platform $Baseboard -os "$OSMajorVersion"-osver $WindowsBuild -category dock
+        Log -Message " - Applying repository filter to $Computersystem repository to download: Dock" -type 1 -LogFile $LogFile -Component HPIA
+        
+        Add-RepositoryFilter -platform $Baseboard -os "$OSMajorVersion"-osver $WindowsBuild -category driver
+        Log -Message " - Applying repository filter to $Computersystem repository to download: Driver" -type 1 -LogFile $LogFile -Component HPIA
+        
+        Add-RepositoryFilter -platform $Baseboard -os "$OSMajorVersion"-osver $WindowsBuild -category firmware
+        Log -Message " - Applying repository filter to $Computersystem repository to download: Firmware" -type 1 -LogFile $LogFile -Component HPIA
+        
+        Add-RepositoryFilter -platform $Baseboard -os "$OSMajorVersion"-osver $WindowsBuild -category bios
+        Log -Message " - Applying repository filter to $Computersystem repository to download: BIOS" -type 1 -LogFile $LogFile -Component HPIA
+
+        Log -Message " - Invoking repository sync with the following filter (might take some time):" -type 1 -LogFile $LogFile -Component HPIA
+        Log -Message "   - Computersystem: $Computersystem" -Type 1 -LogFile $LogFile -Component HPIA
+        Log -Message "   - Baseboard: $Baseboard" -Type 1 -LogFile $LogFile -Component HPIA
+        Log -Message "   - OSMajorversion: $OSMajorVersion" -Type 1 -LogFile $LogFile -Component HPIA
+        Log -Message "   - WindowsBuild: $WindowsBuild" -Type 1 -LogFile $LogFile -Component HPIA
+
+        Write-Output "Invoking repository sync for $Computersystem $Baseboard. OS: "$OSMajorVersion", $WindowsBuild (might take some time)"
+        try
+        {
+            Log -Message " - Starting Repository sync" -LogFile $LogFile -Type 1 -Component HPIA
+            Set-RepositoryConfiguration -Setting OfflineCacheMode -CacheValue Enable
+            Start-Sleep -s 15
+            Invoke-RepositorySync -Quiet
+
+            Log -Message " - Repository sync is successful" -Type 1 -LogFile $LogFile -Component HPIA
+            Write-Output "Repository sync is successful"
+        }
+        catch
+        {
+            Log -Message " - Repository sync  NOT successful" -LogFile $LogFile -Component HPIA -Type 3
+            Write-Output "Repository sync NOT successful"
+            Log -Message " - Error code: $($_.Exception.Message)" -Type 3 -Component "Error" -LogFile $LogFile
+            Exit 1 # La till Exit code här behövs det?!
+
+        }
         Start-Sleep -s 15
-        Invoke-RepositorySync -Quiet
 
-        Log -Message " - Repository sync is successful" -Type 1 -LogFile $LogFile -Component HPIA
-        Write-Output "Repository sync is successful"
-    }
-    catch
-    {
-        Log -Message " - Repository sync  NOT successful" -LogFile $LogFile -Component HPIA -Type 3
-        Write-Output "Repository sync NOT successful"
-        Log -Message " - Error code: $($_.Exception.Message)" -Type 3 -Component "Error" -LogFile $LogFile
-        Exit 1 # La till Exit code här behövs det?!
+        If($LTSC){
+            Log -Message "Script set to run as LTSC, must rename cab file" -LogFile $LogFile -Component HPIA -Type 2
+            $CabName = (Get-ItemProperty $HPIAPath\Repository\.repository\cache\*.cab).name
+            $CabNewName = ((Get-ItemProperty $HPIAPath\Repository\.repository\cache\*.cab).name).Replace(".cab", ".e.cab")
+            Rename-Item -path "$HPIAPath\Repository\.repository\cache\$CabName" -newname $CabNewName
+            Log -Message " - Rename $CabName to $CabNewName" -LogFile $LogFile -Component HPIA -Type 2
+            Log -Message "LTSC section is now done" -LogFile $LogFile -Component HPIA -Type 2
 
-    }
-    Start-Sleep -s 15
-
-    If($LTSC){
-        Log -Message "Script set to run as LTSC, must rename cab file" -LogFile $LogFile -Component HPIA -Type 2
-        $CabName = (Get-ItemProperty $HPIAPath\Repository\.repository\cache\*.cab).name
-        $CabNewName = ((Get-ItemProperty $HPIAPath\Repository\.repository\cache\*.cab).name).Replace(".cab", ".e.cab")
-        Rename-Item -path "$HPIAPath\Repository\.repository\cache\$CabName" -newname $CabNewName
-        Log -Message " - Rename $CabName to $CabNewName" -LogFile $LogFile -Component HPIA -Type 2
-        Log -Message "LTSC section is now done" -LogFile $LogFile -Component HPIA -Type 2
-
-
-    }
-    Set-Location "$HPIAPath\"
-    
-    if (-not $PreCache)
-    {
-      $SoftpaqDownloadFolder = $HPIAPath  
-        Log -Message "Attempting to read BIOS password from TS environment variable 'HPIA_BIOSPassword'" -Type 1 -Component "HPIA" -LogFile $LogFile
-        # Get BIOS variable
-        $BIOSPassword = $TSEnvironment.Value("HPIA_BIOSPassword")
-        if (-not([string]::IsNullOrEmpty($BIOSPassword))) 
-        {
-            Log -Message " - Successfully read BIOS password from TS environment variable 'HPIA_BIOSPassword': ********" -Type 1 -Component "HPIA" -LogFile $LogFile
-
-            # Clear task sequence variable for HP Password.
-            $TSEnvironment.Value("HPIA_BIOSPassword") = [System.String]::Empty
-            [System.Environment]::SetEnvironmentVariable('biospass',"$BIOSPassword") #Set BIOS Password as environment variable, will be cleared on last line in script.
-            Log -Message " - Setting task sequence variable 'HPIA_BIOSPassword' to a blank value" -Type 1 -Component "HPIA" -logfile $LogFile
-            $Argument = "/Operation:Analyze /Action:install /Selection:All /OfflineMode:Repository /noninteractive /Debug /SoftpaqDownloadFolder:$($SoftpaqDownloadFolder) /ReportFolder:$($HPIALogFile) /BIOSPwdEnv:biospass"
-            Log -Message "BIOSPassword enviroment found, will start HPIA with following install arguments: $($Argument)." -type 1 -Component "HPIA" -LogFile $LogFile  
 
         }
-        Else
-        {
-            $Argument = "/Operation:Analyze /Action:install /Selection:All /OfflineMode:Repository /noninteractive /Debug /SoftpaqDownloadFolder:$($SoftpaqDownloadFolder) /ReportFolder:$($HPIALogFile)" 
-            Log -Message "BIOSPassword enviroment variable could not be found, will start HPIA with following install arguments: $($Argument)." -type 1 -Component "HPIA" -LogFile $LogFile  
-
-        }
-
-
-        StartHPIA
-
-    }
-    else {
-            Log -Message "Script is running as Precache, skipping to install HPIA." -Type 2 -Component "HPIA" -logfile $LogFile   
-        }
+        Set-Location "$HPIAPath\"
         
-    [System.Environment]::SetEnvironmentVariable('biospass','Secret')
-    Log -Message "Successfully cleared BIOSPassword enviroment variable" -type 1 -Component "HPIA" -LogFile $LogFile  
+
+        if (-not $PreCache)
+        {
+          $SoftpaqDownloadFolder = $HPIAPath  
+            Log -Message "Attempting to read BIOS password from TS environment variable 'HPIA_BIOSPassword'" -Type 1 -Component "HPIA" -LogFile $LogFile
+            # Get BIOS variable
+            $BIOSPassword = $TSEnvironment.Value("HPIA_BIOSPassword")
+            if (-not([string]::IsNullOrEmpty($BIOSPassword))) 
+            {
+                Log -Message " - Successfully read BIOS password from TS environment variable 'HPIA_BIOSPassword': ********" -Type 1 -Component "HPIA" -LogFile $LogFile
+
+                # Clear task sequence variable for HP Password.
+                $TSEnvironment.Value("HPIA_BIOSPassword") = [System.String]::Empty
+                [System.Environment]::SetEnvironmentVariable('biospass',"$BIOSPassword") #Set BIOS Password as environment variable, will be cleared on last line in script.
+                Log -Message " - Setting task sequence variable 'HPIA_BIOSPassword' to a blank value" -Type 1 -Component "HPIA" -logfile $LogFile
+                $Argument = "/Operation:Analyze /Action:install /Selection:All /OfflineMode:Repository /noninteractive /Debug /SoftpaqDownloadFolder:$($SoftpaqDownloadFolder) /ReportFolder:$($HPIALogFile) /BIOSPwdEnv:biospass"
+                Log -Message "BIOSPassword enviroment found, will start HPIA with following install arguments: $($Argument)." -type 1 -Component "HPIA" -LogFile $LogFile  
+
+            }
+            Else
+            {
+                $Argument = "/Operation:Analyze /Action:install /Selection:All /OfflineMode:Repository /noninteractive /Debug /SoftpaqDownloadFolder:$($SoftpaqDownloadFolder) /ReportFolder:$($HPIALogFile)" 
+                Log -Message "BIOSPassword enviroment variable could not be found, will start HPIA with following install arguments: $($Argument)." -type 1 -Component "HPIA" -LogFile $LogFile  
+
+            }
+
+
+            StartHPIA
+
+        }
+        else {
+                Log -Message "Script is running as Precache, skipping to install HPIA." -Type 2 -Component "HPIA" -logfile $LogFile   
+            }
+
+            
+        [System.Environment]::SetEnvironmentVariable('biospass','Secret')
+        Log -Message "Successfully cleared BIOSPassword enviroment variable" -type 1 -Component "HPIA" -LogFile $LogFile  
+   
+    }
+    else 
+    {
+        Log -Message "$Computersystem is not supported by HP" -Type 2 -Component "HPCMSL" -LogFile $LogFile
+
+    }
 }
 
 Log -Message "HPIA process is now complete" -Component "HPIA" -Type 1 -logfile $LogFile
