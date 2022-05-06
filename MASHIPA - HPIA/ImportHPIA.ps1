@@ -41,7 +41,8 @@
             2.1 - 2022-04-08 - Nicklas Eriksson
                                 - Added a new function cleanup function to be able to cleanup WindowsBuild or specific models that are no longer supported in your enviroemnt. 
                                 - Created function ConnectToConfigMgr
-            2.2 - 2022-04-20 - Nicklas Eriksson - Added support to download software as category, named HPIA_Software in the Config file.
+            2.2 - 2022-04-20 - Nicklas Eriksson -  Supported Config and CSV file is not upload but hopefully uploaded sometime between 2022-04-09-2022-04-31
+                                - Added support to download software as category, named HPIA_Software in the Config file.
             2.3 - 2022-05-05 - Nicklas Eriksson - Added check against HP to see if the model are supported by or not.
 
  Contact: Grahns.Daniel@outlook.com, erikssonnicklas@hotmail.com
@@ -71,7 +72,7 @@ param(
     [string]$Config
 )
 
-#$Config = "E:\scripts\importhpia\Config_BETA.xml" #(.\ImportHPIA.ps1 -config .\config.xml) # Only used for debug purpose, it's better to run the script from script line.
+#$Config = "E:\scripts\importhpia\Config.xml" #(.\ImportHPIA.ps1 -config .\config.xml) # Only used for debug purpose, it's better to run the script from script line.
 $stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
 
 function Print
@@ -126,7 +127,6 @@ Type: 1 = Normal, 2 = Warning (yellow), 3 = Error (red)
     $LogMessage = "<![LOG[$Message $ErrorMessage" + "]LOG]!><time=`"$Time`" date=`"$Date`" component=`"$Component`" context=`"`" type=`"$Type`" thread=`"`" file=`"`">"
     $LogMessage | Out-File -Append -Encoding UTF8 -FilePath $LogFile
 }
-
 
 function ModuleUpdateAvailable($Module)
 {
@@ -570,24 +570,24 @@ if ($AutomaticCleanUp.Enabled -eq "True") {
 
             $DriverPackageName = "HPIA-$($AutomaticCleanUp.WindowsVersion)-$RemoveOSBuild*"
             $GetAllRetiredDriverPackage = Get-CMPackage -Name $DriverPackageName -fast | Select-Object -Property Name, PkgSourcePath
-            Log -Message "Got $($GetAllRetiredDriverPackage.count) packages that was marked for deletion." -Type 1 $LogFile -Component "AutomaticRemove"
+            Log -Message " - Got $($GetAllRetiredDriverPackage.count) packages that was marked for deletion." -Type 1 -LogFile $LogFile -Component "AutomaticRemove"
             # Delete Packages in ConfigMgr
             if ($GetAllRetiredDriverPackage.Count -gt 1)
             {
-                Log -Message "Starting to delete the packages in ConfigMgr" -Type 1 $LogFile -Component "AutomaticRemove"      
+                Log -Message " - Starting to delete the packages in ConfigMgr" -Type 1 -LogFile $LogFile -Component "AutomaticRemove"      
                 Foreach($RetiredCMPackage in $GetAllRetiredDriverPackage)
                 {
                     try
                     {
-                        Remove-CMPackage -Name $RetiredCMPackage.Name -Force -ErrorAction Stop -WhatIf 
+                        Remove-CMPackage -Name $RetiredCMPackage.Name -Force -ErrorAction Stop 
                         Print -Message "Successfully deleted $($RetiredCMPackage.Name)" -Color Magenta
-                        Log -Message "Successfully deleted $($RetiredCMPackage.Name)" -Type 1 -LogFile $LogFile -Component AutomaticRemove
+                        Log -Message "  - Successfully deleted $($RetiredCMPackage.Name)" -Type 1 -LogFile $LogFile -Component AutomaticRemove
                     }
                     catch
                     {
-                        Log -Message "Could not delete $($RetiredCMPackage.Name) in ConfigMgr" -LogFile $LogFile -Component AutomaticRemove -Type 2
+                        Log -Message "  - Could not delete $($RetiredCMPackage.Name) in ConfigMgr" -LogFile $LogFile -Component AutomaticRemove -Type 2
                         Print -Message "Could not delete $($RetiredCMPackage.Name) in ConfigMgr" -Indent 4 -Color Red
-                        Log -Message "Error code: $($_.Exception.Message)" -Type 3 -Component "Error" -LogFile $LogFile
+                        Log -Message "  - Error code: $($_.Exception.Message)" -Type 3 -Component "Error" -LogFile $LogFile
 
                     }
                 }
@@ -595,26 +595,26 @@ if ($AutomaticCleanUp.Enabled -eq "True") {
                 $CheckAllRetiredDriverPackage = Get-CMPackage -Name $DriverPackageName -fast | Select-Object -Property Name
 
                 Print -Message "Done with deletion in ConfigMgr and it's $($CheckAllRetiredDriverPackage.Count) packages left" -Color Magenta
-                Log -Message "Done with deletion in ConfigMgr and it's $($CheckAllRetiredDriverPackage.Count) packages left" -Type 1 -LogFile $LogFile -Component AutomaticRemove
+                Log -Message " - Done with deletion in ConfigMgr and it's $($CheckAllRetiredDriverPackage.Count) packages left" -Type 1 -LogFile $LogFile -Component AutomaticRemove
 
                 Set-Location -Path $($InstallPath)
-  
+                Log -Message " - Starting to remove content sourcepath" -Type 1 -LogFile $LogFile -Component AutomaticRemove    
                 # Delete source folders
-                foreach ($RetiredCMPackage in $AllRetiredDriverPackage)
+                foreach ($RetiredCMPackage in $GetAllRetiredDriverPackage)
                 {
                     try
                     {
                         $DeleteRetiredPackagePath = $RetiredCMPackage.PkgSourcePath # -replace "\\StandardPkg\\" -replace ""
-                        Log "Starting to remove $($RetiredCMPackage.Name) with sourcepath $($DeleteRetiredPackagePath)" -type 1 -LogFile $LogFile -Component AutomaticRemove
-                        Remove-item -Path $DeleteRetiredPackagePath -Confirm:$false -Recurse -WhatIf
+                        Log " - Starting to remove $($RetiredCMPackage.Name) with sourcepath $($DeleteRetiredPackagePath)" -type 1 -LogFile $LogFile -Component AutomaticRemove
+                        Remove-item -Path $DeleteRetiredPackagePath -Confirm:$false -Recurse
                         Print -Message "Successfully deleted $($RetiredCMPackage.Name) source files" -Color Magenta
-                        Log "Successfully deleted $($RetiredCMPackage.Name) with sourcepath $($DeleteRetiredPackagePath)" -type 1 -LogFile $LogFile -Component AutomaticRemove
+                        Log " - Successfully deleted $($RetiredCMPackage.Name) with sourcepath $($DeleteRetiredPackagePath)" -type 1 -LogFile $LogFile -Component AutomaticRemove
                     }
                     catch
                     {
-                        Log -Message "Could not delete $($RetiredCMPackage.Name) in ConfigMgr" -LogFile $LogFile -Component AutomaticRemove -Type 2
+                        Log -Message " - Could not delete $($RetiredCMPackage.Name) in ConfigMgr" -LogFile $LogFile -Component AutomaticRemove -Type 2
                         Print -Message "Could not delete $($RetiredCMPackage.Name) in ConfigMgr" -Indent 4 -Color Red
-                        Log -Message "Error code: $($_.Exception.Message)" -Type 3 -Component AutomaticRemove -LogFile $LogFile
+                        Log -Message " - Error code: $($_.Exception.Message)" -Type 3 -Component AutomaticRemove -LogFile $LogFile
                     }
 
                 }
@@ -679,12 +679,11 @@ if ($AutomaticCleanUp.Enabled -eq "True") {
         }
         else 
         {
-            Print -Message "Could not find any .CSV file, the script will break" -Color Red -Indent 2
-            Log -Message "Could not find any .CSV file, the script will break" -Type 3 -LogFile $LogFile -Component FileImport
+            Print -Message "Could not find any .CSV file" -Color Red -Indent 2
+            Log -Message "Could not find any .CSV file" -Type 3 -LogFile $LogFile -Component FileImport
         }
     }
 }
-
 
 
 $HPModelsTable = foreach ($Model in $ModelsToImport) {
@@ -750,6 +749,8 @@ foreach ($Model in $HPModelsTable) {
 
     Print -Message "Working on $($Model.Model)" -Color Cyan -Indent 2
     Log -Message "Working on $($Model.Model)" -type 1 -LogFile $LogFile -Component HPIA
+
+    Set-Location $InstallPath
 
     $ModelPath = Join-Path $RepositoryPath "$($Model.WindowsVersion)\$WindowsBuild\$($Model.Model) $($Model.ProdCode)"
     $ModelRepositoryPath = Join-Path $ModelPath "Repository"
