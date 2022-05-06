@@ -4,8 +4,8 @@
   Information: Some variabels are hardcoded, search on Hardcoded variabels and you will find those. 
   Link to project: https://github.com/EGGLAS/ConfigMgr
   Created: 2021-02-11
-  Latest updated: 2022-04-10
-  Current version: 2.1
+  Latest updated: 2022-05-05
+  Current version: 2.3
 
   Changelog: 1.0 - 2021-02-11 - Nicklas Eriksson -  Script Edited and fixed Daniels crappy hack and slash code :)
              1.1 - 2021-02-18 - Nicklas Eriksson - Added HPIA to download to HPIA Download instead to Root Directory, Added BIOSPwd should be copy to HPIA so BIOS upgrades can be run during OSD. 
@@ -38,11 +38,12 @@
                                 - Removed unused code
                                 - Added more logging to the log
                                 - Added more error handling to the script to be able to catch errors to the log file.
-            2.1 - 2022-04-08 - Nicklas Eriksson - THIS VERSION IS STILL IN BETA!!! Supported Config and CSV file is not upload but hopefully uploaded sometime between 2022-04-09-2022-04-31
+            2.1 - 2022-04-08 - Nicklas Eriksson
                                 - Added a new function cleanup function to be able to cleanup WindowsBuild or specific models that are no longer supported in your enviroemnt. 
                                 - Created function ConnectToConfigMgr
-            2.2 - 2022-04-20 - Nicklas Eriksson - THIS VERSION IS STILL IN BETA!!! Supported Config and CSV file is not upload but hopefully uploaded sometime between 2022-04-09-2022-04-31
-                                - Added support to download software as category, named HPIA_Software in the Config file.
+            2.2 - 2022-04-20 - Nicklas Eriksson - Added support to download software as category, named HPIA_Software in the Config file.
+            2.3 - 2022-05-05 - Nicklas Eriksson - Added check against HP to see if the model are supported by or not.
+
  Contact: Grahns.Daniel@outlook.com, erikssonnicklas@hotmail.com
  Twitter: Sigge_gooner 
  LinkedIn: https://www.linkedin.com/in/danielgrahns/
@@ -218,7 +219,7 @@ $AutomaticCleanUp = $Xml.Configuration.Option | Where-Object {$_.Name -like 'Aut
 #$XMLLogfile = $Xml.Configuration.Option | Where-Object {$_.Name -like 'Logfile'} | Select-Object -ExpandProperty 'Value'
 
 # Hardcoded variabels in the script.
-$ScriptVersion = "2.2"
+$ScriptVersion = "2.3"
 $LogFile = "$InstallPath\RepositoryUpdate.log" #Filename for the logfile.
 [int]$MaxLogSize = 9999999
 
@@ -538,7 +539,7 @@ if (Test-path $SupportedModelsCSV) {
     {
         Log -Message "Info: $($ModelsToImport.Model.Count) models found" -Type 1 -LogFile $LogFile -Component FileImport
         Print -Message "$($ModelsToImport.Model.Count) models found" -Color Green -Indent 2
-
+        
     }
     else
     {
@@ -684,12 +685,39 @@ if ($AutomaticCleanUp.Enabled -eq "True") {
     }
 }
 
+
+
 $HPModelsTable = foreach ($Model in $ModelsToImport) {
-    @(
-    @{ ProdCode = "$($Model.ProductCode)"; Model = "$($Model.Model)"; WindowsBuild = $Model.WindowsBuild; WindowsVersion = $Model.WindowsVersion }
-    )
-    Log -Message "Added $($Model.ProductCode) $($Model.Model) $($Model.WindowsVersion) $($Model.WindowsBuild) to download list" -type 1 -LogFile $LogFile -Component FileImport
-    Print -Message "Added $($Model.ProductCode) $($Model.Model) $($Model.WindowsVersion) $($Model.WindowsBuild) to download list" -Color Green -Indent 3
+    
+    switch ($Model.WindowsVersion) 
+    {
+        'Win10' {
+         $HPOSMajorVersion = "Windows 10"
+        }
+        'Win11' {
+         $HPOSMajorVersion = "Windows 11"
+        }
+    }
+
+    Log -Message "Checking to see if the $($Model.model) is supported by HP" -type 1 -LogFile $LogFile -Component FileImport
+    Print -Message "Checking to see if the $($Model.model) is supported by HP" -Color Green -Indent 3
+
+    $CheckIfModelIsSupportedbyHP = Get-HPDeviceDetails -Name "$($Model.Model)" -Like -OSList | Where-Object {($_.OperatingSystem -like "*$HPOSMajorVersion*") -and ($_.OperatingSystemRelease -eq "$($Model.WindowsBuild)")} | Select-Object Name, OperatingSystem, OperatingSystemRelease
+    if (-not([string]::IsNullOrEmpty($CheckIfModelIsSupportedbyHP))) 
+    {
+        Log -Message " - $($Model.model) is supported by HP" -type 1 -LogFile $LogFile -Component FileImport
+        @(
+        @{ ProdCode = "$($Model.ProductCode)"; Model = "$($Model.Model)"; WindowsBuild = $Model.WindowsBuild; WindowsVersion = $Model.WindowsVersion }
+        )
+        Log -Message " - Added $($Model.ProductCode) $($Model.Model) $($Model.WindowsVersion) $($Model.WindowsBuild) to download list" -type 1 -LogFile $LogFile -Component FileImport
+        Print -Message "Added $($Model.ProductCode) $($Model.Model) $($Model.WindowsVersion) $($Model.WindowsBuild) to download list" -Color Green -Indent 3
+
+    }
+    else
+    {
+        Log -Message "$($Model.Model) is not supported by HP, not adding the model to download list" -type 1 -LogFile $LogFile -Component FileImport
+        Print -Message "$($Model.Model) is not supported by HP, not adding the model to download list" -Color Red -Indent 3
+    }
 }
 
 Print -Message "Processing specified models" -Color Green -Indent 1
