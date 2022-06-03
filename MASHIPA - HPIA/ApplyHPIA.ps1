@@ -1,4 +1,4 @@
-<# Author: Nicklas Eriksson & Daniel GrÃƒÂ¥hns
+<# Author: Nicklas Eriksson & Daniel GrÃ¥hns
  Purpose: Download HP Drivers and apply HPIA drivers during OS Deployment or OS Upgrade.
  Link to project: https://github.com/EGGLAS/ConfigMgr
  Created: 2021-02-11
@@ -473,7 +473,7 @@ if ($Online -eq "FallbackOnline" -or "DoNotFallbackOnline")
     	try {
 		        # Call AdminService endpoint to retrieve package data
                 log -Message " - Accessing adminservice with following URL: $($AdminServiceUri)" -Type 1 -Component HPIA -LogFile $LogFile				
-                $AdminServiceResponse = Invoke-RestMethod $AdminServiceUri -Method Get -Credential $Credential -ErrorAction 
+                $AdminServiceResponse = Invoke-RestMethod $AdminServiceUri -Method Get -Credential $Credential -ErrorAction Stop 
                 
             $CheckifAdminServiceResponseIsNull =  $AdminServiceResponse.value | Select-Object Name
                
@@ -690,7 +690,6 @@ if (($Online -eq "Online") -or ($FallbackOnline -eq "NewModel")) {
     $WorkingDir = $env:TEMP
     
     #PowerShellGet from PSGallery URL
-    # Kommentar gå genom detta med Daniel, hur blir det vid nya versioenr?
     if (!(Get-Module -Name PowerShellGet)){
         $PowerShellGetURL = "https://psg-prod-eastus.azureedge.net/packages/powershellget.2.2.5.nupkg"
         Log -Message "Downloading module PowerShellGet" -Type 1 -Component "HPIA" -LogFile $LogFile
@@ -703,7 +702,6 @@ if (($Online -eq "Online") -or ($FallbackOnline -eq "NewModel")) {
     }
 
     #PackageManagement from PSGallery URL 
-    # Kommentar gå genom detta med Daniel, hur blir det vid nya versioenr?
     if (!(Get-Module -Name PackageManagement)){
         $PackageManagementURL = "https://psg-prod-eastus.azureedge.net/packages/packagemanagement.1.4.7.nupkg"
         Invoke-WebRequest -UseBasicParsing -Uri $PackageManagementURL -OutFile "$WorkingDir\packagemanagement.1.4.7.zip"
@@ -860,7 +858,7 @@ if (($Online -eq "Online") -or ($FallbackOnline -eq "NewModel")) {
             Log -Message " - Repository sync  NOT successful" -LogFile $LogFile -Component HPIA -Type 3
             Write-Output "Repository sync NOT successful"
             Log -Message " - Error code: $($_.Exception.Message)" -Type 3 -Component "Error" -LogFile $LogFile
-            Exit 1 # La till Exit code här behövs det?!
+            Exit 1 
 
         }
         Start-Sleep -s 15
