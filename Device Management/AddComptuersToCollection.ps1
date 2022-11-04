@@ -2,8 +2,8 @@
  Author: Nicklas Eriksson
  Purpose: Add computers to collection by ID or name.
  Created: 2022-10-19
- Latest updated: 2022-10-19
- Current Version: 1.0
+ Latest updated: 2022-11-04
+ Current Version: 1.2
  Changelog: 1.0 - 2022-10-19 - Nicklas Eriksson -  Script was created.
             1.1 - 2022-10-10 - NicklaS Eriksson - Added support for single computer and collection name.
             1.2 - 2022-11-04 - Nicklas Eriksson - Updated script to support multiple computers when adding single computers.
@@ -13,7 +13,7 @@
  .\AddComptuersToCollectionByID.ps1 -SiteCode LO2 -SiteServer siteserver.domain.local -CollectionID LO1000X3 -ComputerFile E:\Scripts\Computers.txt
  Enter a single computer to add to the collection by ID.
   .\AddComptuersToCollectionByID.ps1 -SiteCode LO2 -SiteServer siteserver.domain.local -CollectionID LO1000X3 -Computer "Test1000"
- Enter a single computername to add to the collection by Name
+ Enter multiple computers to add to the collection by Name
  .\AddComptuersToCollectionByID.ps1 -SiteCode LO2 -SiteServer siteserver.domain.local -CollectionName "Test computers IT" -ComputerName "Test1000","Test10001"
 
 #>
