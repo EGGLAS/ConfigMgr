@@ -7,6 +7,7 @@
  Changelog: 1.0 - 2022-10-19 - Nicklas Eriksson -  Script was created.
             1.1 - 2022-10-10 - NicklaS Eriksson - Added support for single computer and collection name.
             1.2 - 2022-11-04 - Nicklas Eriksson - Updated script to support multiple computers when adding single computers.
+            1.3- 2022-11-10 - Nicklas Eriksosn - Changed how I get resource id for each computer.
 
  How run the script:
   Create a text file that specify the path where the text file exists, adding multiple computers from text file to the collection by ID. 
@@ -99,9 +100,8 @@ Write-host "Info: Starting to add Computers to CollectionID: $($CollectionID)" -
 foreach ($Computer in $Computers)
 {
     try {
-        $ResourceID = Get-CMDevice -Name "$($Computer)" -fast -ErrorAction Stop | Select-object -ExpandProperty ResourceID
         Write-host "Info: - Adding $($Computer) to $CollectionID" -ForegroundColor Yellow
-        Add-CMDeviceCollectionDirectMembershipRule -CollectionId "$collectionID" -ResourceId $ResourceID
+        Add-CMDeviceCollectionDirectMembershipRule -CollectionId "$collectionID" -ResourceId $(Get-CMDevice -Name $Computer).ResourceID
     
     }
     catch
