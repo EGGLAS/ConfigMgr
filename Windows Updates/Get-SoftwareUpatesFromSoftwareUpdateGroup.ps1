@@ -17,15 +17,7 @@ param(
     [Parameter(Mandatory=$True, HelpMessage='Specify sitecode.')]
     [string]$SiteCode,
     [Parameter(Mandatory=$True, HelpMessage='Specify siteserver.')]
-    [string]$SiteServer,
-    [Parameter(Mandatory=$False, HelpMessage='Specify collectionID.')]
-    [string]$CollectionID,
-    [Parameter(Mandatory=$False, HelpMessage='Specify the name of the collection.')]
-    [string]$CollectionName,
-    [Parameter(Mandatory=$False, HelpMessage='Specify path to the csv-file that contains computer.')]
-    [string]$ComputerFile,
-    [Parameter(Mandatory=$False, HelpMessage='Enter computername.')]
-    [string[]]$ComputerName  
+    [string]$SiteServer
 )
 
 $SoftwareUpdateRule = "ADR: Windows Server*" # Change this to suit your environment
