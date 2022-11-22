@@ -1,18 +1,16 @@
 <#
  Name: Nicklas Eriksson
  Date: 2022-11-21
- Purpose: Getting software updates from Software Update group.
+ Purpose: Fetching GivenName, Surname ,Name, Mail from AD-group.
  Version: 1.0
  Changelog: 1.0 - 2022-02-04 - Nicklas Eriksson -  Script was created.
 
  How to run it:
- Change variable $SoftwareUpdateRule to suit your environment. 
+ .\AddComptuersToCollectionByID.ps1 -SiteCode LO2 -SiteServer siteserver.domain.local
 
- .\Get-SoftwareUpatesFromSoftwareUpdateGroup.ps1 -SiteCode LO2 -SiteServer siteserver.domain.local
 
 #>
 
-[CmdletBinding(DefaultParameterSetName = "")]
 param(
     [Parameter(Mandatory=$True, HelpMessage='Specify sitecode.')]
     [string]$SiteCode,
@@ -20,7 +18,7 @@ param(
     [string]$SiteServer
 )
 
-$SoftwareUpdateRule = "ADR: Windows Server*" # Change this to suit your environment
+$SoftwareUpdateRule = "ADR: Windows Server*"
 $scriptPath = split-path -parent $MyInvocation.MyCommand.Definition
 
 # Site configuration
@@ -29,8 +27,6 @@ $ProviderMachineName = $SiteServer # SMS Provider machine name
 
 # Customizations
 $initParams = @{}
-#$initParams.Add("Verbose", $true) # Uncomment this line to enable verbose logging
-#$initParams.Add("ErrorAction", "Stop") # Uncomment this line to stop the script on any errors
 
 # Import the ConfigurationManager.psd1 module 
 if((Get-Module ConfigurationManager) -eq $null) {
@@ -47,8 +43,15 @@ Set-Location "$($SiteCode):\" @initParams
 
 # Get Software update group based on variable $SoftwareUpdateRule
 try {
-    Write-host "Getting Software updates for Software Updategroup: $($SoftwareUpdateRule)"
+    Write-host "Getting Software updates from Software Updategroup: $($SoftwareUpdateRule)"
     $GetSoftwareUpdates = Get-CMSoftwareUpdateGroup | where-object LocalizedDisplayName -like $SoftwareUpdateRule  | Select-object *
+    Write-host "Found: $($GetSoftwareUpdates.Count)"
+    Write-host "The following Software Update groups were found"
+
+   foreach ($SoftwareUpdateGroup in $GetSoftwareUpdates)
+   {
+       Write-host " - Name: $($SoftwareUpdateGroup.LocalizedDisplayName)"
+   }
 
 }
 catch
@@ -68,7 +71,7 @@ if ([string]::IsNullOrEmpty($GetSoftwareUpdates)) {
 else {
     foreach ($update in $GetSoftwareUpdates.LocalizedDisplayName)
     {
-        Write-host "Getting Software updates from Software Updategroup: $($SoftwareUpdateRule)"
+        Write-host "Checking Software Updategroup: $($update)" -ForegroundColor Yellow
         Get-CMSoftwareUpdate -UpdateGroupName $Update -fast | Select-object -expandproperty LocalizedDisplayName
         Write-host "----------------------------------------------------------------------------------------" -ForegroundColor Yellow
     }
