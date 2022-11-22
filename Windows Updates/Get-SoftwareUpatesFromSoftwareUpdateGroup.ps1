@@ -1,12 +1,12 @@
 <#
  Name: Nicklas Eriksson
  Date: 2022-11-21
- Purpose: Fetching GivenName, Surname ,Name, Mail from AD-group.
+ Purpose: Getting software updates from Software Update group.
  Version: 1.0
- Changelog: 1.0 - 2022-02-04 - Nicklas Eriksson -  Script was created.
+ Changelog: 1.0 - 2022-11-21 - Nicklas Eriksson -  Script was created.
 
  How to run it:
- .\AddComptuersToCollectionByID.ps1 -SiteCode LO2 -SiteServer siteserver.domain.local
+ .\Get-SoftwareUpatesFromSoftwareUpdateGroup.ps1 -SiteCode LO2 -SiteServer siteserver.domain.local
 
 
 #>
