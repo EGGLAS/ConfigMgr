@@ -99,8 +99,8 @@ if ($RunADR)
 
     foreach ($ADR in $GetAllADR.Name)
     {
-        Invoke-CMSoftwareUpdateAutoDeploymentRule -Name $ADR -WhatIf
-        Write-host " - $($ADR) was triggerd to run" -ForegroundColor Yellow
+        Invoke-CMSoftwareUpdateAutoDeploymentRule -Name $ADR
+        Write-host " - $($ADR) was triggerd to run"
     }
 }
 else
