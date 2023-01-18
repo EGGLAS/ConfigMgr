@@ -2,17 +2,15 @@
  Name: Nicklas Eriksson
  Date: 2022-11-21
  Purpose: Getting software updates from Software Update group. 
- Version: 1.0
- Changelog: 1.0 - 2022-11-21 - Nicklas Eriksson -  Script was created.
-            1.1 - 2022-11-21 - Nicklas Eriksson -  Updated the script with the paramter RunADR, it's now possible to run the ADRs again if some updates are missing. .
+ Current version: 1.1
+ Changelog: 1.0 - 2022-11-21 - Nicklas Eriksson - Script was created.
+            1.1 - 2022-11-21 - Nicklas Eriksson - New paramter added RunADR, it's now possible to run the ADRs again if some updates are missing in the software update group.
 
  How to run it:
  This will get all updates from all Software update groups that starts with the name ADR: Windows Server.
  .\Get-SoftwareUpatesFromSoftwareUpdateGroup.ps1 -SiteCode LO2 -SiteServer siteserver.domain.local
  This will get all updates from all Software update groups that starts with the name ADR: Windows Server and run the ADRs again if some update is missing.
  .\Get-SoftwareUpatesFromSoftwareUpdateGroup.ps1 -SiteCode LO2 -SiteServer siteserver.domain.local -RunADR
-
-
 
 #>
 
