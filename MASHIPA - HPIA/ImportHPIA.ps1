@@ -44,6 +44,9 @@
             2.2 - 2022-04-20 - Nicklas Eriksson -  Supported Config and CSV file is not upload but hopefully uploaded sometime between 2022-04-09-2022-04-31
                                 - Added support to download software as category, named HPIA_Software in the Config file.
             2.3 - 2022-05-05 - Nicklas Eriksson - Added check against HP to see if the model are supported by or not.
+            2.4 - 2023-01-18 - Nicklas Eriksson - Fixed the catch logic for step HPCMSL since it's not reporting anything to the log file when it fails. 
+                                                - Added -SkipPublishercheck on the install HPCMSL step, need to do your own research if you want to use that.
+                                                - Fixed a bugg that it did not create a new folder structre for a new Windows version ex. 22H2.
 
  Contact: Grahns.Daniel@outlook.com, erikssonnicklas@hotmail.com
  Twitter: Sigge_gooner 
@@ -391,14 +394,14 @@ if ($InstallHPCML -eq "True")
                 Print -Message "New version of HPCMSL module found, installing" -Indent 2
                 Log -Message "New version of HPCMSL module found, installing" -Type 1 -Component "LogFile" -LogFile $LogFile
 
-                Install-Module -Name HPCMSL -Force -AcceptLicense -Scope AllUsers
+                Install-Module -Name HPCMSL -Force -AcceptLicense -Scope AllUsers -SkipPublisherCheck -ErrorAction Stop
 
             }
             catch 
             {
-                Log -Message "Could not import HPCMSL Module" -Type 3 -Component "Error" -LogFile $LogFile
+                Log -Message "Could not update HPCMSL Module" -Type 3 -Component "Error" -LogFile $LogFile
                 Log -Message " - Error code: $($_.Exception.Message)" -Type 3 -Component "Error" -LogFile $LogFile
-                Exit 1
+                Exit 1 # Decide if you want HPIA to  run on old HPCMSL module or not.
             }
         }
         else
@@ -714,8 +717,8 @@ $HPModelsTable = foreach ($Model in $ModelsToImport) {
     }
     else
     {
-        Log -Message "$($Model.Model) is not supported by HP, not adding the model to download list" -type 1 -LogFile $LogFile -Component FileImport
-        Print -Message "$($Model.Model) is not supported by HP, not adding the model to download list" -Color Red -Indent 3
+        Log -Message " - $($Model.Model) is not supported by HP, not adding the model to the download list" -type 2 -LogFile $LogFile -Component FileImport
+        Print -Message "$($Model.Model) is not supported by HP, not adding the model to the download list" -Color Red -Indent 3
     }
 }
 
@@ -1027,30 +1030,33 @@ foreach ($Model in $HPModelsTable) {
 
     ConnectToConfigMgr
     
+    # Create main folder structure ex. MS1:\Package\Driver Packages\HPIA\
     if ((Test-path $CMfolderPath) -eq $false)
     {
         Log -Message "$CMFolderPath does not exists in ConfigMgr, creating folder path" -type 1 -LogFile $LogFile -Component ConfigMgr
         Print -Message "$CMFolderPath does not exists in ConfigMgr, creating folder path" -Color Green -Indent 4
         New-Item -ItemType directory -Path "$CMfolderPath"
         Log -Message "$CMFolderPath was successfully created in ConfigMgr" -type 1 -LogFile $LogFile -Component ConfigMgr
-
-        if ((Test-path $CMfolderPath\$($Model.WindowsVersion)) -eq $false)
+    }
+    
+    # Create folder structure for new Windows OS ex. Win10 or Win 11
+    if ((Test-path $CMfolderPath\$($Model.WindowsVersion)) -eq $false)
         {
             Log -Message "$CMfolderPath\$($Model.WindowsVersion) does not exists in ConfigMgr, creating folder path" -type 2 -LogFile $LogFile -Component ConfigMgr
             Print -Message "$CMfolderPath\$($Model.WindowsVersion) does not exists in ConfigMgr, creating folder path" -Color Green -Indent 4
-            New-Item -ItemType directory -Path "$CMfolderPath\$($Model.WindowsVersion)" -Force
+            New-Item -ItemType directory -Path "$CMfolderPath\$($Model.WindowsVersion)" -Force -WhatIf
             Log -Message "$CMFolderPath was successfully created in ConfigMgr" -type 2 -LogFile $LogFile -Component ConfigMgr
-
-            if ((Test-path $CMfolderPath\$($Model.WindowsVersion)\$WindowsBuild) -eq $false)
-            {
-                Log -Message "$CMfolderPath\$($Model.WindowsVersion)\$WindowsBuild does not exists in ConfigMgr, creating folder path" -type 2 -LogFile $LogFile -Component ConfigMgr
-                Print -Message "$CMfolderPath\$($Model.WindowsVersion)\$WindowsBuild does not exists in ConfigMgr, creating folder path" -Color Green -Indent 4
-                New-Item -ItemType directory -Path "$CMfolderPath\$($Model.WindowsVersion)\$WindowsBuild" -Force
-                Log -Message "$CMFolderPath was successfully created in ConfigMgr" -type 2 -LogFile $LogFile -Component ConfigMgr
-            }
         }
-    }
-
+    
+    # Create folder strucure for new Windows version ex 22H2
+    if ((Test-path $CMfolderPath\$($Model.WindowsVersion)\$WindowsBuild) -eq $false)
+        {
+            Log -Message "$CMfolderPath\$($Model.WindowsVersion)\$WindowsBuild does not exists in ConfigMgr, creating folder path" -type 2 -LogFile $LogFile -Component ConfigMgr
+            Print -Message "$CMfolderPath\$($Model.WindowsVersion)\$WindowsBuild does not exists in ConfigMgr, creating folder path" -Color Green -Indent 4
+            New-Item -ItemType directory -Path "$CMfolderPath\$($Model.WindowsVersion)\$WindowsBuild" -Force
+            Log -Message "$CMFolderPath was successfully created in ConfigMgr" -type 2 -LogFile $LogFile -Component ConfigMgr
+        }
+        
     $SourcesLocation = $ModelPath # Set Source location
     $PackageName = "HPIA-$($Model.WindowsVersion)-$WindowsBuild-" + "$($Model.Model)" + " $($Model.ProdCode)" #Must be below 40 characters, hardcoded variable, will be used inside the ApplyHPIA.ps1 script, Please dont change this.
     $PackageDescription = "$($Model.WindowsVersion) $WindowsBuild-" + "$($Model.Model)" + " $($Model.ProdCode)"
