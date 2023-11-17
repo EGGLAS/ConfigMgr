@@ -1,5 +1,5 @@
 ﻿<#
-    Name: Nicklas Eriksson, IT-center
+    Name: Nicklas Eriksson
     Created: 2022-09-23
     Purpose: 
     - Get Current user and check if certian .EXE file exists in the users appdata directory. 
