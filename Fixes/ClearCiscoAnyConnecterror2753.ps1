@@ -1,4 +1,4 @@
-# Author: Nicklas Eriksson, IT-center
+# Author: Nicklas Eriksson
 # Purpose: Clear registry keys that make AnyConnect fails during installation. Can be run as script per machine in ConfigMgr.
 # Version: 1.0 - 2019-03-28
 
