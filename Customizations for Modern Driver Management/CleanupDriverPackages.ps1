@@ -1,11 +1,12 @@
-﻿# Name: Nicklas Eriksson, IT-center
-# 
-# Purpose: Cleanup all drivers that are marked as retired in Configuration Manager and deletes sourcefiles.
-# Version: 1.0 - 2020-06-03
-# History: 1.0 - 2020-06-03: Script was created.
-# 1.1 - 2020-06-04: Logfile was added and send to teams channel.
-# To-do: Create logfile to see what have been deleted in the past.
-
+<# 
+Name: Nicklas Eriksson
+ 
+ Purpose: Cleanup all drivers that are marked as retired in Configuration Manager and deletes sourcefiles.
+ Version: 1.0 - 2020-06-03
+ History: 1.0 - 2020-06-03: Script was created.
+ 1.1 - 2020-06-04: Logfile was added and send to teams channel.
+ To-do: Create logfile to see what have been deleted in the past.
+#>
 # Uncomment the line below if running in an environment where script signing is 
 # required.
 # Set-ExecutionPolicy -ExecutionPolicy Bypass -Scope Process
