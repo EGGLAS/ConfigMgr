@@ -1,4 +1,4 @@
-# Name: Nicklas Eriksson, IT-center
+# Name: Nicklas Eriksson
 # 
 # Purpose: Change all Moder Driver mangement package that has the name Hewlett-Packard in manufacturer field to HP.
 # Version: 1.0 - 2020-09-18
