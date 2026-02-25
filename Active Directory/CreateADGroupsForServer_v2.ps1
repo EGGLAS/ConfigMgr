@@ -4,7 +4,7 @@
  Purpose: Automatically create tiered AD security groups for all computer objects discovered under a root Admin OU in the Haggeburger.se domain.
           Tier OUs, sub-OUs (PAW / Servers / Jumphosts) and the target Groups OU are all auto-discovered - no hardcoding of individual OUs required.
 
- Current version: 2.1
+ Current version: 2.2
  Changelog: 2.0 - 2026-02-25 - Nicklas Eriksson - Script was created.
                                                     Auto-discovers Tier OUs, sub-OUs and Groups OU beneath a single root OU.
                                                     Groups are named <TierPrefix>-<TypePrefix>-<ComputerName>-<RoleSuffix>.
@@ -12,6 +12,7 @@
             2.1 - 2026-02-25 - Nicklas Eriksson - Updated group description format: Tier <N> <Type> - Local admin group for <ComputerName>
                                                    Removed (Auto-created) suffix from descriptions.
                                                    Added fallback OU support ($FallbackTierConfig) when auto-discovery finds no Tier OUs.
+            2.2 - 2026-02-25 - Nicklas Eriksson - Fixed: Log function now auto-creates the log directory if it does not exist.
 
  How to run it:
  .\CreateADGroupsForServer_v2.ps1
@@ -22,7 +23,7 @@ Simply put: Use at your own risk.
 
 #>
 
-$ScriptVersion = "2.1"
+$ScriptVersion = "2.2"
 
 # ---------------------------------------------------------------------------
 # Configuration - only these variables need to be set by the user
