@@ -2,7 +2,7 @@
  Author: Nicklas Eriksson
  Created: 2026-02-25
  Purpose: Automatically create tiered AD security groups for all computer objects discovered under a root Admin OU in the Haggeburger.se domain.
-          Tier OUs, sub-OUs (PAW / Servers / Jumphosts) and the target Groups OU are all auto-discovered — no hardcoding of individual OUs required.
+          Tier OUs, sub-OUs (PAW / Servers / Jumphosts) and the target Groups OU are all auto-discovered - no hardcoding of individual OUs required.
 
  Current version: 2.1
  Changelog: 2.0 - 2026-02-25 - Nicklas Eriksson - Script was created.
@@ -25,20 +25,20 @@ Simply put: Use at your own risk.
 $ScriptVersion = "2.1"
 
 # ---------------------------------------------------------------------------
-# Configuration — only these variables need to be set by the user
+# Configuration - only these variables need to be set by the user
 # ---------------------------------------------------------------------------
-$AdminRootOU = "OU=Admin,DC=Haggeburger,DC=se"   # Root OU — everything is auto-discovered from here
+$AdminRootOU = "OU=Admin,DC=Haggeburger,DC=se"   # Root OU - everything is auto-discovered from here
 $RoleSuffix  = "Localadmins"                      # Suffix appended to every group name
 $LogFile     = "C:\ServerAutomation\CreateADGroupsTiered.log"
 
-# Optional manual fallback — only used if no Tier OUs are auto-discovered under $AdminRootOU
+# Optional manual fallback - only used if no Tier OUs are auto-discovered under $AdminRootOU
 # Leave empty @() to rely purely on auto-discovery
 # Example entry: @{ TierPrefix = "T1"; GroupsOU = "OU=Groups,OU=Tier 1,OU=Admin,DC=Haggeburger,DC=se"; SourceOUs = @( @{ TypePrefix = "SRV"; OU = "OU=Servers,OU=Tier 1,OU=Admin,DC=Haggeburger,DC=se" }, @{ TypePrefix = "JMP"; OU = "OU=Jumphosts,OU=Tier 1,OU=Admin,DC=Haggeburger,DC=se" } ) }
 $FallbackTierConfig = @()
 
 
 # ---------------------------------------------------------------------------
-# Log function (CMTrace-compatible) — identical to CreateADGroupsForServer.ps1
+# Log function (CMTrace-compatible) - identical to CreateADGroupsForServer.ps1
 # ---------------------------------------------------------------------------
 function Log {
     Param (
@@ -69,7 +69,7 @@ Type: 1 = Normal, 2 = Warning (yellow), 3 = Error (red)
 
 
 # ---------------------------------------------------------------------------
-# Helper: map a Tier OU name to a short Tier prefix (T0, T1, T2, …)
+# Helper: map a Tier OU name to a short Tier prefix (T0, T1, T2, ...)
 # ---------------------------------------------------------------------------
 function Get-TierPrefix {
     param([string]$TierOUName)
@@ -105,7 +105,7 @@ Log -Message "<-----------------------------------------------------------------
 Log -Message "Script started with version: $($ScriptVersion)" -Type 1 -LogFile $LogFile
 Log -Message "Admin root OU: $AdminRootOU" -Type 1 -LogFile $LogFile
 
-# Step 1 — Auto-discover all Tier OUs directly under the root Admin OU
+# Step 1 - Auto-discover all Tier OUs directly under the root Admin OU
 Log -Message "Discovering Tier OUs under: $AdminRootOU" -Type 1 -LogFile $LogFile
 
 try {
@@ -147,7 +147,7 @@ if (-not $TierOUs) {
                 }
 
                 if (-not $Computers) {
-                    Log -Message "   - No computer objects found in $($SourceOU.OU) — skipping." -Type 2 -Component "Script" -LogFile $LogFile
+                    Log -Message "   - No computer objects found in $($SourceOU.OU) - skipping." -Type 2 -Component "Script" -LogFile $LogFile
                     continue
                 }
 
@@ -185,7 +185,7 @@ if (-not $TierOUs) {
                         }
                     }
                     else {
-                        Log -Message "   - AD-group $GroupName already exists — skipping." -Type 1 -Component "Script" -LogFile $LogFile
+                        Log -Message "   - AD-group $GroupName already exists - skipping." -Type 1 -Component "Script" -LogFile $LogFile
                     }
                 }
             }
@@ -208,7 +208,7 @@ foreach ($TierOU in $TierOUs) {
     $TierNumber = $TierPrefix.Substring(1)
     Log -Message "Processing Tier OU: $($TierOU.Name) (prefix: $TierPrefix)" -Type 1 -Component "Script" -LogFile $LogFile
 
-    # Step 2 — Find the Groups OU within this Tier OU
+    # Step 2 - Find the Groups OU within this Tier OU
     $GroupsOU = $null
     try {
         $GroupsOU = Get-ADOrganizationalUnit -SearchBase $TierOU.DistinguishedName -SearchScope OneLevel -Filter {Name -eq "Groups"} |
@@ -220,13 +220,13 @@ foreach ($TierOU in $TierOUs) {
     }
 
     if (-not $GroupsOU) {
-        Log -Message " - No 'Groups' OU found under $($TierOU.Name) — skipping tier." -Type 2 -Component "Script" -LogFile $LogFile
+        Log -Message " - No 'Groups' OU found under $($TierOU.Name) - skipping tier." -Type 2 -Component "Script" -LogFile $LogFile
         continue
     }
 
     Log -Message " - Groups target OU: $($GroupsOU.DistinguishedName)" -Type 1 -Component "Script" -LogFile $LogFile
 
-    # Step 3 — Auto-discover sub-OUs (PAW / Servers / Jumphosts) within this Tier OU
+    # Step 3 - Auto-discover sub-OUs (PAW / Servers / Jumphosts) within this Tier OU
     $SubOUs = $null
     try {
         $SubOUs = Get-ADOrganizationalUnit -SearchBase $TierOU.DistinguishedName -SearchScope OneLevel -Filter * |
@@ -239,7 +239,7 @@ foreach ($TierOU in $TierOUs) {
     }
 
     if (-not $SubOUs) {
-        Log -Message " - No relevant sub-OUs (PAW/Servers/Jumphosts) found under $($TierOU.Name) — skipping tier." -Type 2 -Component "Script" -LogFile $LogFile
+        Log -Message " - No relevant sub-OUs (PAW/Servers/Jumphosts) found under $($TierOU.Name) - skipping tier." -Type 2 -Component "Script" -LogFile $LogFile
         continue
     }
 
@@ -248,7 +248,7 @@ foreach ($TierOU in $TierOUs) {
         $TypePrefix = Get-TypePrefix -SubOUName $SubOU.Name
         Log -Message " - Processing sub-OU: $($SubOU.Name) (prefix: $TypePrefix)" -Type 1 -Component "Script" -LogFile $LogFile
 
-        # Step 4 — Retrieve all computer objects from this sub-OU
+        # Step 4 - Retrieve all computer objects from this sub-OU
         $Computers = $null
         try {
             Log -Message "   - Getting computer objects from: $($SubOU.DistinguishedName)" -Type 1 -Component "Script" -LogFile $LogFile
@@ -262,11 +262,11 @@ foreach ($TierOU in $TierOUs) {
         }
 
         if (-not $Computers) {
-            Log -Message "   - No computer objects found in $($SubOU.Name) — skipping." -Type 2 -Component "Script" -LogFile $LogFile
+            Log -Message "   - No computer objects found in $($SubOU.Name) - skipping." -Type 2 -Component "Script" -LogFile $LogFile
             continue
         }
 
-        # Step 5 — Create a group for each computer object
+        # Step 5 - Create a group for each computer object
         foreach ($Computer in $Computers) {
 
             $GroupName   = "$TierPrefix-$TypePrefix-$($Computer.Name)-$RoleSuffix"
@@ -305,7 +305,7 @@ foreach ($TierOU in $TierOUs) {
 
             }
             else {
-                Log -Message "   - AD-group $GroupName already exists — skipping." -Type 1 -Component "Script" -LogFile $LogFile
+                Log -Message "   - AD-group $GroupName already exists - skipping." -Type 1 -Component "Script" -LogFile $LogFile
             }
         }
     }
