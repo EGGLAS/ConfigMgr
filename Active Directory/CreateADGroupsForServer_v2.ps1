@@ -64,6 +64,7 @@ Type: 1 = Normal, 2 = Warning (yellow), 3 = Error (red)
     if ($Component -eq $null) {$Component = " "}
     if ($Type -eq $null) {$Type = 1}
     $LogMessage = "<![LOG[$Message $ErrorMessage" + "]LOG]!><time=`"$Time`" date=`"$Date`" component=`"$Component`" context=`"`" type=`"$Type`" thread=`"`" file=`"`">"
+    [System.IO.Directory]::CreateDirectory([System.IO.Path]::GetDirectoryName($LogFile)) | Out-Null
     $LogMessage | Out-File -Append -Encoding UTF8 -FilePath $LogFile
 }
 
