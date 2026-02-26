@@ -53,4 +53,9 @@ Describe "CreateADGroupsForServer_v2.ps1 - Syntax and Static Validation" {
         $content = Get-Content $ScriptPath -Raw
         $content | Should -Match 'CreateDirectory'
     }
+
+    It "Should use ToUpper() on computer names to ensure uppercase group names" {
+        $content = Get-Content $ScriptPath -Raw
+        $content | Should -Match '\.ToUpper\(\)'
+    }
 }
