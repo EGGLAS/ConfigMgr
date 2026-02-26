@@ -7,52 +7,56 @@
 
 Describe "CreateADGroupsForServer_v2.ps1 - Syntax and Static Validation" {
 
-    $ScriptPath = if ($PSScriptRoot) {
-        Join-Path $PSScriptRoot "CreateADGroupsForServer_v2.ps1"
-    } else {
-        Join-Path (Split-Path -Parent $MyInvocation.MyCommand.Path) "CreateADGroupsForServer_v2.ps1"
+    BeforeAll {
+        # In CI, AD_SCRIPT_PATH env var is set by the workflow.
+        # Locally, fall back to $PSCommandPath-based resolution.
+        if ($env:AD_SCRIPT_PATH) {
+            $script:ScriptPath = $env:AD_SCRIPT_PATH
+        } else {
+            $script:ScriptPath = Join-Path (Split-Path $PSCommandPath) "CreateADGroupsForServer_v2.ps1"
+        }
     }
 
     It "Script file should exist" {
-        $ScriptPath | Should -Exist
+        $script:ScriptPath | Should -Exist
     }
 
     It "Should parse without syntax errors" {
         $errors = $null
-        $null = [System.Management.Automation.Language.Parser]::ParseFile($ScriptPath, [ref]$null, [ref]$errors)
+        $null = [System.Management.Automation.Language.Parser]::ParseFile($script:ScriptPath, [ref]$null, [ref]$errors)
         $errors.Count | Should -Be 0
     }
 
     It "Script file should be UTF-8 without BOM" {
-        $bytes = [System.IO.File]::ReadAllBytes($ScriptPath)
+        $bytes = [System.IO.File]::ReadAllBytes($script:ScriptPath)
         $hasBOM = ($bytes[0] -eq 0xEF -and $bytes[1] -eq 0xBB -and $bytes[2] -eq 0xBF)
         $hasBOM | Should -Be $false
     }
 
     It "Should contain required configuration variables" {
-        $content = Get-Content $ScriptPath -Raw
+        $content = Get-Content $script:ScriptPath -Raw
         $content | Should -Match '\$AdminRootOU'
         $content | Should -Match '\$RoleSuffix'
         $content | Should -Match '\$LogFile'
     }
 
     It "Should not contain non-ASCII characters" {
-        $content = Get-Content $ScriptPath -Raw
+        $content = Get-Content $script:ScriptPath -Raw
         ($content -match '[^\x00-\x7F]') | Should -Be $false
     }
 
     It "Log function should auto-create the log directory if it does not exist" {
-        $content = Get-Content $ScriptPath -Raw
+        $content = Get-Content $script:ScriptPath -Raw
         $content | Should -Match 'CreateDirectory'
     }
 
     It "Should use .ToUpper() when building group names in auto-discovery path" {
-        $content = Get-Content $ScriptPath -Raw
+        $content = Get-Content $script:ScriptPath -Raw
         $content | Should -Match '\$Computer\.Name\.ToUpper\(\)'
     }
 
     It "Should use the uppercased ComputerName variable in GroupName and Description" {
-        $content = Get-Content $ScriptPath -Raw
+        $content = Get-Content $script:ScriptPath -Raw
         $content | Should -Match '\$ComputerName\s*=\s*\$Computer\.Name\.ToUpper\(\)'
         $content | Should -Match '\$GroupName\s*=.*\$ComputerName'
         $content | Should -Match '\$Description\s*=.*\$ComputerName'
