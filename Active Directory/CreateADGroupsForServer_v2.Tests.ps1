@@ -53,4 +53,59 @@ Describe "CreateADGroupsForServer_v2.ps1 - Syntax and Static Validation" {
         $content = Get-Content $ScriptPath -Raw
         $content | Should -Match 'CreateDirectory'
     }
+
+    It "Should use .ToUpper() when building group names in auto-discovery path" {
+        $content = Get-Content $ScriptPath -Raw
+        $content | Should -Match '\$Computer\.Name\.ToUpper\(\)'
+    }
+
+    It "Should use the uppercased ComputerName variable in GroupName and Description" {
+        $content = Get-Content $ScriptPath -Raw
+        $content | Should -Match '\$ComputerName\s*=\s*\$Computer\.Name\.ToUpper\(\)'
+        $content | Should -Match '\$GroupName\s*=.*\$ComputerName'
+        $content | Should -Match '\$Description\s*=.*\$ComputerName'
+    }
 }
+
+Describe "CreateADGroupsForServer_v2.ps1 - Uppercase Computer Name Logic" {
+
+    It "GroupName should contain uppercased computer name when computer name is lowercase" {
+        $TierPrefix   = "T1"
+        $TypePrefix   = "SRV"
+        $RoleSuffix   = "Localadmins"
+        $Computer     = [PSCustomObject]@{ Name = "server01" }
+        $ComputerName = $Computer.Name.ToUpper()
+        $GroupName    = "$TierPrefix-$TypePrefix-$ComputerName-$RoleSuffix"
+        $GroupName | Should -Be "T1-SRV-SERVER01-Localadmins"
+    }
+
+    It "GroupName should contain uppercased computer name when computer name is mixed-case" {
+        $TierPrefix   = "T1"
+        $TypePrefix   = "SRV"
+        $RoleSuffix   = "Localadmins"
+        $Computer     = [PSCustomObject]@{ Name = "Server01" }
+        $ComputerName = $Computer.Name.ToUpper()
+        $GroupName    = "$TierPrefix-$TypePrefix-$ComputerName-$RoleSuffix"
+        $GroupName | Should -Be "T1-SRV-SERVER01-Localadmins"
+    }
+
+    It "GroupName should remain unchanged when computer name is already uppercase" {
+        $TierPrefix   = "T1"
+        $TypePrefix   = "SRV"
+        $RoleSuffix   = "Localadmins"
+        $Computer     = [PSCustomObject]@{ Name = "SERVER01" }
+        $ComputerName = $Computer.Name.ToUpper()
+        $GroupName    = "$TierPrefix-$TypePrefix-$ComputerName-$RoleSuffix"
+        $GroupName | Should -Be "T1-SRV-SERVER01-Localadmins"
+    }
+
+    It "Description should contain uppercased computer name" {
+        $TierNumber   = "1"
+        $TypePrefix   = "SRV"
+        $Computer     = [PSCustomObject]@{ Name = "server01" }
+        $ComputerName = $Computer.Name.ToUpper()
+        $Description  = "Tier $TierNumber $TypePrefix - Local admin group for $ComputerName"
+        $Description | Should -Be "Tier 1 SRV - Local admin group for SERVER01"
+    }
+}
+

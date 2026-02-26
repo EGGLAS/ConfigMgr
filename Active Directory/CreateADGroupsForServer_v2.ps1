@@ -13,6 +13,7 @@
                                                    Removed (Auto-created) suffix from descriptions.
                                                    Added fallback OU support ($FallbackTierConfig) when auto-discovery finds no Tier OUs.
             2.2 - 2026-02-25 - Nicklas Eriksson - Fixed: Log function now auto-creates the log directory if it does not exist.
+             2.3 - 2026-02-26 - Nicklas Eriksson - Computer names in group names and descriptions are now always uppercased via .ToUpper().
 
  How to run it:
  .\CreateADGroupsForServer_v2.ps1
@@ -23,7 +24,7 @@ Simply put: Use at your own risk.
 
 #>
 
-$ScriptVersion = "2.2"
+$ScriptVersion = "2.3"
 
 # ---------------------------------------------------------------------------
 # Configuration - only these variables need to be set by the user
@@ -154,8 +155,9 @@ if (-not $TierOUs) {
                 }
 
                 foreach ($Computer in $Computers) {
-                    $GroupName   = "$TierPrefix-$TypePrefix-$($Computer.Name)-$RoleSuffix"
-                    $Description = "Tier $TierNumber $TypePrefix - Local admin group for $($Computer.Name)"
+                    $ComputerName = $Computer.Name.ToUpper()
+                    $GroupName   = "$TierPrefix-$TypePrefix-$ComputerName-$RoleSuffix"
+                    $Description = "Tier $TierNumber $TypePrefix - Local admin group for $ComputerName"
 
                     $ADgroupExist = $true
 
@@ -271,8 +273,9 @@ foreach ($TierOU in $TierOUs) {
         # Step 5 - Create a group for each computer object
         foreach ($Computer in $Computers) {
 
-            $GroupName   = "$TierPrefix-$TypePrefix-$($Computer.Name)-$RoleSuffix"
-            $Description = "Tier $TierNumber $TypePrefix - Local admin group for $($Computer.Name)"
+            $ComputerName = $Computer.Name.ToUpper()
+            $GroupName   = "$TierPrefix-$TypePrefix-$ComputerName-$RoleSuffix"
+            $Description = "Tier $TierNumber $TypePrefix - Local admin group for $ComputerName"
 
             # Reset existence flag before every check (fixes the bleed-through bug in v1)
             $ADgroupExist = $true
